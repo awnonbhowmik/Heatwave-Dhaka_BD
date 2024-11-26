@@ -1,8 +1,12 @@
 # Analysis of Heatwaves in Dhaka, Bangladesh
-<p align="justify">Climate change has increasingly intensified the frequency and severity of heatwaves globally, posing significant challenges to public health, urban infrastructure, and ecosystems. Dhaka, the capital of Bangladesh, is particularly vulnerable due to its high population density, rapid urbanization, and inadequate heat-resilience planning. This repository is dedicated to analyzing heatwave trends in Dhaka from 1972 to 2024, providing insights into the factors driving these events and their impacts on society.</p>
+<p align="justify">
+Climate change has increasingly intensified the frequency and severity of heatwaves globally, posing significant challenges to public health, urban infrastructure, and ecosystems. Dhaka, the capital of Bangladesh, is particularly vulnerable due to its high population density, rapid urbanization, and inadequate heat-resilience planning. This repository is dedicated to analyzing heatwave trends in Dhaka from 1972 to 2024, providing insights into the factors driving these events and their impacts on society.
+</p>
 
 ## Overview
-<p align="justify>This repository contains data and analysis related to the occurrence, intensity, and impacts of heatwaves in Dhaka, Bangladesh, from 1972 to 2024. It aims to provide insights into climatic trends, atmospheric factors, and the socio-economic consequences of heatwaves in the region.</p>
+<p align="justify">
+This repository contains data and analysis related to the occurrence, intensity, and impacts of heatwaves in Dhaka, Bangladesh, from 1972 to 2024. It aims to provide insights into climatic trends, atmospheric factors, and the socio-economic consequences of heatwaves in the region.
+</p>
 
 The dataset includes daily climate records for Dhaka Division, with key variables such as:
 - **Temperature** (Maximum, Minimum, and Mean)
