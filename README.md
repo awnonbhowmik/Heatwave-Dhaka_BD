@@ -33,7 +33,6 @@ The data spans over five decades and is structured to facilitate trend analysis,
 
 ## Dependencies
 To reproduce the analysis and visualizations, install the following Python libraries:
-
 - pandas
 - numpy
 - matplotlib
