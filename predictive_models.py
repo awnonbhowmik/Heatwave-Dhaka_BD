@@ -79,7 +79,7 @@ class HeatwavePredictor:
         print(f"Feature preparation completed. Shape: {feature_data.shape}")
         
     def fit_arima_model(self):
-        """Fit ARIMA model for temperature forecasting using tested implementation"""
+        """Fit ARIMA model for temperature forecasting using enhanced implementation from main notebook"""
         print("="*70)
         print("ARIMA TIME SERIES FORECASTING")
         print("="*70)
@@ -100,7 +100,6 @@ class HeatwavePredictor:
             print(f"\n1. SEASONAL DECOMPOSITION")
             decomposition = seasonal_decompose(monthly_temp, model='additive', period=12)
             
-            # Plot decomposition
             fig, axes = plt.subplots(4, 1, figsize=(15, 12))
             decomposition.observed.plot(ax=axes[0], title='Original Time Series')
             decomposition.trend.plot(ax=axes[1], title='Trend Component')
@@ -120,10 +119,10 @@ class HeatwavePredictor:
                                        stepwise=True,
                                        trace=True)
                 
+                print(f"Best ARIMA model: {auto_model.order}")
+                print(f"Best seasonal order: {auto_model.seasonal_order}")
                 order = auto_model.order
                 seasonal_order = auto_model.seasonal_order
-                print(f"Best ARIMA model: {order}")
-                print(f"Best seasonal order: {seasonal_order}")
             else:
                 # Default parameters if pmdarima not available
                 order = (1, 1, 1)
@@ -188,16 +187,30 @@ class HeatwavePredictor:
             print(f"\nHistorical average (1972-2024): {historical_avg:.2f}°C")
             print(f"Forecast vs Historical difference: {forecast.mean() - historical_avg:.2f}°C")
             
-            # Store results
-            self.models['arima'] = arima_fitted
-            self.forecasts['arima'] = {
+            # Create annual forecasts dictionary as in main notebook
+            annual_forecasts = {}
+            for year in range(5):
+                year_start = year * 12
+                year_end = (year + 1) * 12
+                annual_avg = forecast[year_start:year_end].mean()
+                year_label = str(2025 + year)
+                annual_forecasts[year_label] = float(annual_avg)
+            
+            print(f"\nAnnual Forecasts:")
+            for year, temp in annual_forecasts.items():
+                increase = temp - historical_avg
+                print(f"• {year}: {temp:.2f}°C (+{increase:.2f}°C from historical)")
+            
+            # Store results with enhanced data structure matching main notebook
+            arima_results = {
                 'dates': future_dates,
                 'forecast': forecast,
                 'confidence_interval': forecast_ci,
+                'model_order': order,
+                'seasonal_order': seasonal_order,
                 'historical_data': monthly_temp,
                 'decomposition': decomposition,
-                'order': order,
-                'seasonal_order': seasonal_order,
+                'future_forecast': annual_forecasts,
                 'model_summary': {
                     'aic': arima_fitted.aic,
                     'bic': arima_fitted.bic,
@@ -206,6 +219,9 @@ class HeatwavePredictor:
                     'forecast_increase': forecast.mean() - historical_avg
                 }
             }
+            
+            self.models['arima'] = arima_fitted
+            self.forecasts['arima'] = arima_results
             
             print("ARIMA model completed successfully!")
             
@@ -481,9 +497,400 @@ class HeatwavePredictor:
             import traceback
             traceback.print_exc()
             
+    def fit_lstm_model(self):
+        """Fit LSTM deep learning model for advanced time series forecasting"""
+        print("="*70)
+        print("🧠 LSTM DEEP LEARNING TIME SERIES FORECASTING")
+        print("="*70)
+        
+        try:
+            # Check for TensorFlow availability
+            try:
+                import tensorflow as tf
+                from tensorflow.keras.models import Sequential
+                from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+                from tensorflow.keras.optimizers import Adam
+                from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+                from sklearn.preprocessing import MinMaxScaler
+                print("✓ TensorFlow available for LSTM modeling")
+            except ImportError:
+                print("❌ TensorFlow not available. Install with: pip install tensorflow")
+                return
+            
+            print(f"Time series data preparation for LSTM...")
+            
+            # 1. Feature Selection and Preparation
+            feature_columns = [
+                'Dhaka Temperature [2 m elevation corrected]',
+                'Dhaka Relative Humidity [2 m]',
+                'Dhaka Precipitation Total', 
+                'Dhaka Wind Speed [10 m]',
+                'Dhaka Cloud Cover Total',
+                'Month_sin', 'Month_cos',
+                'DayOfYear_sin', 'DayOfYear_cos',
+                'umd_tree_cover_loss__ha',
+                'Heat_Index'
+            ]
+            
+            # Filter available features
+            available_features = [col for col in feature_columns if col in self.feature_data.columns]
+            target_col = 'Dhaka Temperature [2 m elevation corrected]'
+            
+            # Ensure target is not in features
+            if target_col in available_features:
+                available_features.remove(target_col)
+            
+            print(f"Available features ({len(available_features)}): {available_features}")
+            
+            # Prepare data - make sure we have both features and target
+            required_cols = available_features + [target_col]
+            lstm_data = self.feature_data[required_cols].dropna().copy()
+            print(f"LSTM dataset shape: {lstm_data.shape}")
+            print(f"Features used: {len(available_features)}")
+            print(f"Target: {target_col}")
+            
+            # 2. Data Scaling (critical for LSTM)
+            feature_scaler = MinMaxScaler(feature_range=(0, 1))
+            target_scaler = MinMaxScaler(feature_range=(0, 1))
+            
+            scaled_features = feature_scaler.fit_transform(lstm_data[available_features])
+            scaled_target = target_scaler.fit_transform(lstm_data[[target_col]])
+            
+            print(f"✓ Data scaling completed")
+            print(f"Scaled features shape: {scaled_features.shape}")
+            print(f"Scaled target shape: {scaled_target.shape}")
+            print(f"Number of features for model: {len(available_features)}")
+            
+            # Debug: Print exact feature count
+            print(f"Feature columns being used:")
+            for i, feat in enumerate(available_features):
+                print(f"  {i+1}. {feat}")
+            
+            # 3. Create sequences for LSTM
+            def create_sequences(features, target, sequence_length):
+                X, y = [], []
+                for i in range(sequence_length, len(features)):
+                    X.append(features[i-sequence_length:i])
+                    y.append(target[i])
+                return np.array(X), np.array(y)
+            
+            sequence_length = 60  # Use 60 days to predict next day
+            X, y = create_sequences(scaled_features, scaled_target.flatten(), sequence_length)
+            
+            print(f"Sequence data shape: X={X.shape}, y={y.shape}")
+            print(f"Using {sequence_length} days to predict next day temperature")
+            
+            # 4. Train-test split (time series aware)
+            split_idx = int(len(X) * 0.8)
+            X_train, X_test = X[:split_idx], X[split_idx:]
+            y_train, y_test = y[:split_idx], y[split_idx:]
+            
+            print(f"Training set: {X_train.shape[0]} samples")
+            print(f"Test set: {X_test.shape[0]} samples")
+            
+            # 5. Build Advanced LSTM Architecture
+            print(f"\n🏗️  BUILDING LSTM ARCHITECTURE")
+            
+            # Clear any previous TensorFlow session
+            tf.keras.backend.clear_session()
+            
+            # Set random seed for reproducibility
+            tf.random.set_seed(42)
+            np.random.seed(42)
+            
+            print(f"Building model with input shape: (None, {sequence_length}, {len(available_features)})")
+            
+            model = Sequential([
+                # First LSTM layer with return sequences
+                LSTM(100, return_sequences=True, input_shape=(sequence_length, len(available_features)), 
+                     dropout=0.2, recurrent_dropout=0.2),
+                BatchNormalization(),
+                
+                # Second LSTM layer
+                LSTM(50, return_sequences=True, dropout=0.2, recurrent_dropout=0.2),
+                BatchNormalization(),
+                
+                # Third LSTM layer
+                LSTM(25, return_sequences=False, dropout=0.2, recurrent_dropout=0.2),
+                BatchNormalization(),
+                
+                # Dense layers
+                Dense(50, activation='relu'),
+                Dropout(0.3),
+                Dense(25, activation='relu'),
+                Dropout(0.2),
+                Dense(1)
+            ])
+            
+            # Compile model with advanced optimizer
+            optimizer = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999)
+            model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+            
+            print(f"✓ LSTM model architecture built")
+            print(f"Total parameters: {model.count_params():,}")
+            
+            # Model summary
+            print(f"\n📋 LSTM MODEL ARCHITECTURE:")
+            model.summary()
+            
+            # 6. Advanced Training with Callbacks
+            print(f"\n🚀 TRAINING LSTM MODEL")
+            
+            # Callbacks for better training
+            early_stopping = EarlyStopping(
+                monitor='val_loss', patience=15, restore_best_weights=True, verbose=1
+            )
+            
+            reduce_lr = ReduceLROnPlateau(
+                monitor='val_loss', factor=0.2, patience=10, min_lr=1e-7, verbose=1
+            )
+            
+            callbacks = [early_stopping, reduce_lr]
+            
+            # Train the model
+            history = model.fit(
+                X_train, y_train,
+                epochs=100,
+                batch_size=32,
+                validation_data=(X_test, y_test),
+                callbacks=callbacks,
+                verbose=1,
+                shuffle=False  # Don't shuffle time series data
+            )
+            
+            print(f"✅ LSTM training completed!")
+            
+            # 7. Model Evaluation
+            print(f"\n📊 LSTM MODEL EVALUATION")
+            
+            # Predictions
+            train_pred = model.predict(X_train, verbose=0)
+            test_pred = model.predict(X_test, verbose=0)
+            
+            # Inverse transform predictions
+            train_pred_original = target_scaler.inverse_transform(train_pred.reshape(-1, 1)).flatten()
+            test_pred_original = target_scaler.inverse_transform(test_pred.reshape(-1, 1)).flatten()
+            
+            # Get original values for comparison
+            y_train_original = target_scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
+            y_test_original = target_scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+            
+            # Calculate metrics
+            from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+            
+            train_rmse = np.sqrt(mean_squared_error(y_train_original, train_pred_original))
+            test_rmse = np.sqrt(mean_squared_error(y_test_original, test_pred_original))
+            train_mae = mean_absolute_error(y_train_original, train_pred_original)
+            test_mae = mean_absolute_error(y_test_original, test_pred_original)
+            train_r2 = r2_score(y_train_original, train_pred_original)
+            test_r2 = r2_score(y_test_original, test_pred_original)
+            
+            print(f"Training Metrics:")
+            print(f"  • RMSE: {train_rmse:.4f}°C")
+            print(f"  • MAE: {train_mae:.4f}°C")
+            print(f"  • R²: {train_r2:.4f}")
+            
+            print(f"Test Metrics:")
+            print(f"  • RMSE: {test_rmse:.4f}°C")
+            print(f"  • MAE: {test_mae:.4f}°C")
+            print(f"  • R²: {test_r2:.4f}")
+            
+            # 8. Training History Visualization
+            print(f"\n📈 TRAINING HISTORY VISUALIZATION")
+            
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            
+            # Loss curves
+            axes[0,0].plot(history.history['loss'], label='Training Loss', color='blue')
+            axes[0,0].plot(history.history['val_loss'], label='Validation Loss', color='red')
+            axes[0,0].set_title('Model Loss During Training')
+            axes[0,0].set_xlabel('Epoch')
+            axes[0,0].set_ylabel('Loss (MSE)')
+            axes[0,0].legend()
+            axes[0,0].grid(True, alpha=0.3)
+            
+            # MAE curves
+            axes[0,1].plot(history.history['mae'], label='Training MAE', color='blue')
+            axes[0,1].plot(history.history['val_mae'], label='Validation MAE', color='red')
+            axes[0,1].set_title('Model MAE During Training')
+            axes[0,1].set_xlabel('Epoch')
+            axes[0,1].set_ylabel('MAE')
+            axes[0,1].legend()
+            axes[0,1].grid(True, alpha=0.3)
+            
+            # Prediction vs Actual (Test Set)
+            axes[1,0].scatter(y_test_original, test_pred_original, alpha=0.6, color='purple')
+            axes[1,0].plot([y_test_original.min(), y_test_original.max()], 
+                         [y_test_original.min(), y_test_original.max()], 'r--', lw=2)
+            axes[1,0].set_xlabel('Actual Temperature (°C)')
+            axes[1,0].set_ylabel('Predicted Temperature (°C)')
+            axes[1,0].set_title(f'LSTM Predictions vs Actual (R² = {test_r2:.3f})')
+            axes[1,0].grid(True, alpha=0.3)
+            
+            # Residuals plot
+            residuals = y_test_original - test_pred_original
+            axes[1,1].scatter(test_pred_original, residuals, alpha=0.6, color='orange')
+            axes[1,1].axhline(y=0, color='red', linestyle='--')
+            axes[1,1].set_xlabel('Predicted Temperature (°C)')
+            axes[1,1].set_ylabel('Residuals (°C)')
+            axes[1,1].set_title('Residuals Plot')
+            axes[1,1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # 9. Time Series Prediction Visualization
+            print(f"\n🔍 TIME SERIES PREDICTION VISUALIZATION")
+            
+            # Show last 200 days of predictions vs actual
+            plt.figure(figsize=(15, 8))
+            
+            show_days = min(200, len(y_test_original))
+            test_dates = lstm_data.index[-len(y_test_original):][-show_days:]
+            
+            plt.plot(test_dates, y_test_original[-show_days:], 
+                    label='Actual Temperature', color='blue', linewidth=2)
+            plt.plot(test_dates, test_pred_original[-show_days:], 
+                    label='LSTM Predictions', color='red', linewidth=2, alpha=0.8)
+            
+            plt.title('LSTM Temperature Predictions vs Actual (Last 200 Days)', fontsize=14, fontweight='bold')
+            plt.xlabel('Date')
+            plt.ylabel('Temperature (°C)')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.show()
+            
+            # 10. Future Forecasting
+            print(f"\n🔮 LSTM FUTURE FORECASTING")
+            
+            # Prepare last sequence for forecasting
+            last_sequence = scaled_features[-sequence_length:].reshape(1, sequence_length, len(available_features))
+            
+            # Generate future predictions (next 60 months = 5 years)
+            future_predictions = []
+            current_sequence = last_sequence.copy()
+            
+            print(f"Generating 60-month (5-year) forecast...")
+            
+            for month in range(60):
+                # Predict next value
+                next_pred = model.predict(current_sequence, verbose=0)
+                future_predictions.append(next_pred[0, 0])
+                
+                # Update sequence for next prediction
+                # For simplicity, we'll use the last feature values with predicted temperature
+                next_features = current_sequence[0, -1, :].copy()
+                next_features[0] = next_pred[0, 0]  # Update temperature
+                
+                # Shift sequence and add new prediction
+                current_sequence = np.roll(current_sequence, -1, axis=1)
+                current_sequence[0, -1, :] = next_features
+            
+            # Inverse transform future predictions
+            future_predictions = np.array(future_predictions).reshape(-1, 1)
+            future_predictions_original = target_scaler.inverse_transform(future_predictions).flatten()
+            
+            # Create future dates
+            last_date = lstm_data.index[-1]
+            future_dates = pd.date_range(start=last_date + pd.DateOffset(months=1), 
+                                       periods=60, freq='M')
+            
+            # Convert to annual averages
+            annual_forecasts = []
+            for year in range(5):
+                year_start = year * 12
+                year_end = (year + 1) * 12
+                annual_avg = future_predictions_original[year_start:year_end].mean()
+                annual_forecasts.append(annual_avg)
+                print(f"  • {2025 + year}: {annual_avg:.2f}°C")
+            
+            # 11. Feature Importance Analysis (Attention-like mechanism)
+            print(f"\n🎯 LSTM FEATURE IMPORTANCE ANALYSIS")
+            
+            # Calculate feature importance using permutation method
+            baseline_score = test_r2
+            feature_importance = []
+            
+            for i, feature in enumerate(available_features):
+                # Create test set with permuted feature
+                X_test_permuted = X_test.copy()
+                np.random.shuffle(X_test_permuted[:, :, i])
+                
+                # Get predictions with permuted feature
+                permuted_pred = model.predict(X_test_permuted, verbose=0)
+                permuted_pred_original = target_scaler.inverse_transform(permuted_pred.reshape(-1, 1)).flatten()
+                
+                # Calculate decrease in performance
+                permuted_r2 = r2_score(y_test_original, permuted_pred_original)
+                importance = baseline_score - permuted_r2
+                feature_importance.append(importance)
+                
+                print(f"  {i+1:2d}. {feature}: {importance:.4f}")
+            
+            # Create feature importance dataframe
+            importance_df = pd.DataFrame({
+                'Feature': available_features,
+                'Importance': feature_importance
+            }).sort_values('Importance', ascending=False)
+            
+            # 12. Comprehensive Results Storage
+            historical_avg = lstm_data[target_col].mean()
+            forecast_avg = np.mean(future_predictions_original)
+            
+            self.models['lstm'] = {
+                'model': model,
+                'feature_scaler': feature_scaler,
+                'target_scaler': target_scaler,
+                'sequence_length': sequence_length,
+                'available_features': available_features
+            }
+            
+            self.forecasts['lstm'] = {
+                'train_rmse': train_rmse,
+                'train_mae': train_mae,
+                'train_r2': train_r2,
+                'test_rmse': test_rmse,
+                'test_mae': test_mae,
+                'test_r2': test_r2,
+                'history': history.history,
+                'feature_importance': importance_df,
+                'future_predictions': future_predictions_original,
+                'future_dates': future_dates,
+                'annual_forecasts': annual_forecasts,
+                'model_summary': {
+                    'architecture': 'Multi-layer LSTM with BatchNorm and Dropout',
+                    'total_parameters': model.count_params(),
+                    'sequence_length': sequence_length,
+                    'features_used': len(available_features),
+                    'historical_avg': historical_avg,
+                    'forecast_avg': forecast_avg,
+                    'forecast_increase': forecast_avg - historical_avg,
+                    'training_epochs': len(history.history['loss'])
+                }
+            }
+            
+            print(f"\n✅ LSTM MODELING COMPLETED SUCCESSFULLY!")
+            print(f"🎯 Test R²: {test_r2:.4f} (Higher is better)")
+            print(f"📉 Test RMSE: {test_rmse:.4f}°C (Lower is better)")
+            print(f"🔮 Forecast increase: {forecast_avg - historical_avg:.2f}°C")
+            print(f"🧠 Model complexity: {model.count_params():,} parameters")
+            
+        except Exception as e:
+            print(f"LSTM modeling failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+            
     def fit_random_forest(self):
         """Fit Random Forest model"""
         print("Fitting Random Forest model...")
+        
+        # Ensure features are prepared
+        if not hasattr(self, 'feature_data') or self.feature_data is None:
+            print("Features not yet prepared. Preparing features...")
+            self.prepare_features()
         
         try:
             feature_columns = [
@@ -566,6 +973,11 @@ class HeatwavePredictor:
             return
             
         print("Fitting XGBoost model...")
+        
+        # Ensure features are prepared
+        if not hasattr(self, 'feature_data') or self.feature_data is None:
+            print("Features not yet prepared. Preparing features...")
+            self.prepare_features()
         
         try:
             feature_columns = [
@@ -925,6 +1337,16 @@ class HeatwavePredictor:
             summary += f"  • Strengths: Captures seasonal cycles and climate patterns\n"
             summary += f"  • Model Fit: AIC={self.forecasts['sarima']['model_summary']['aic']:.1f}\n"
             summary += f"  • Seasonal Analysis: Advanced decomposition\n"
+        
+        if 'lstm' in self.forecasts:
+            lstm_perf = self.forecasts['lstm']
+            summary += f"\nLSTM Deep Learning Model:\n"
+            summary += f"  • Test R²: {lstm_perf['test_r2']:.3f}\n"
+            summary += f"  • Test RMSE: {lstm_perf['test_rmse']:.3f}°C\n"
+            summary += f"  • Architecture: {lstm_perf['model_summary']['architecture']}\n"
+            summary += f"  • Parameters: {lstm_perf['model_summary']['total_parameters']:,}\n"
+            summary += f"  • Sequence Length: {lstm_perf['model_summary']['sequence_length']} days\n"
+            summary += f"  • Features Used: {lstm_perf['model_summary']['features_used']}\n"
         
         if 'random_forest' in self.forecasts:
             rf_perf = self.forecasts['random_forest']
