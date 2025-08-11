@@ -214,6 +214,273 @@ class HeatwavePredictor:
             import traceback
             traceback.print_exc()
             
+    def fit_sarima_model(self):
+        """Fit SARIMA model with seasonal components for better climate forecasting"""
+        print("="*70)
+        print("SARIMA SEASONAL TIME SERIES FORECASTING")
+        print("="*70)
+        
+        try:
+            # Prepare monthly temperature data for better seasonal patterns
+            data_copy = self.data.copy()
+            data_copy['YearMonth'] = data_copy['timestamp'].dt.to_period('M')
+            monthly_temp = data_copy.groupby('YearMonth')['Dhaka Temperature [2 m elevation corrected]'].mean()
+            
+            # Convert to datetime index for time series analysis
+            monthly_temp.index = monthly_temp.index.to_timestamp()
+            
+            print(f"Time series data shape: {monthly_temp.shape}")
+            print(f"Date range: {monthly_temp.index.min()} to {monthly_temp.index.max()}")
+            
+            # 1. Enhanced Seasonal Decomposition
+            print(f"\n1. ENHANCED SEASONAL DECOMPOSITION")
+            decomposition = seasonal_decompose(monthly_temp, model='additive', period=12)
+            
+            # Plot enhanced decomposition
+            fig, axes = plt.subplots(5, 1, figsize=(16, 15))
+            
+            # Original series
+            decomposition.observed.plot(ax=axes[0], title='Original Monthly Temperature Series', color='blue')
+            axes[0].set_ylabel('Temperature (°C)')
+            axes[0].grid(True, alpha=0.3)
+            
+            # Trend component
+            decomposition.trend.plot(ax=axes[1], title='Long-term Trend Component', color='red')
+            axes[1].set_ylabel('Trend (°C)')
+            axes[1].grid(True, alpha=0.3)
+            
+            # Seasonal component
+            decomposition.seasonal.plot(ax=axes[2], title='Seasonal Component (Annual Cycle)', color='green')
+            axes[2].set_ylabel('Seasonal (°C)')
+            axes[2].grid(True, alpha=0.3)
+            
+            # Residual component
+            decomposition.resid.plot(ax=axes[3], title='Residual Component', color='orange')
+            axes[3].set_ylabel('Residual (°C)')
+            axes[3].grid(True, alpha=0.3)
+            
+            # Seasonal pattern analysis
+            seasonal_pattern = decomposition.seasonal.iloc[:12]
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            axes[4].bar(months, seasonal_pattern.values, color='skyblue', alpha=0.7)
+            axes[4].set_title('Average Seasonal Pattern by Month')
+            axes[4].set_ylabel('Seasonal Effect (°C)')
+            axes[4].grid(True, alpha=0.3)
+            axes[4].tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # Seasonal statistics
+            print(f"\nSeasonal Pattern Analysis:")
+            print(f"• Peak seasonal effect: {seasonal_pattern.max():.2f}°C in {months[seasonal_pattern.argmax()]}")
+            print(f"• Minimum seasonal effect: {seasonal_pattern.min():.2f}°C in {months[seasonal_pattern.argmin()]}")
+            print(f"• Seasonal range: {seasonal_pattern.max() - seasonal_pattern.min():.2f}°C")
+            
+            # 2. Auto SARIMA to find best parameters
+            print(f"\n2. AUTO SARIMA PARAMETER SELECTION")
+            if PMDARIMA_AVAILABLE:
+                print("Searching for optimal SARIMA parameters...")
+                auto_sarima = auto_arima(monthly_temp, 
+                                       seasonal=True, 
+                                       m=12,  # 12-month seasonality
+                                       max_p=3, max_q=3, max_P=2, max_Q=2,
+                                       max_d=2, max_D=1,
+                                       suppress_warnings=True,
+                                       stepwise=True,
+                                       trace=True,
+                                       information_criterion='aic')
+                
+                order = auto_sarima.order
+                seasonal_order = auto_sarima.seasonal_order
+                print(f"\nBest SARIMA model: ARIMA{order} x {seasonal_order}12")
+                print(f"Model AIC: {auto_sarima.aic():.2f}")
+            else:
+                # Default parameters if pmdarima not available
+                order = (1, 1, 1)
+                seasonal_order = (1, 1, 1, 12)
+                print(f"Using default SARIMA parameters: {order}, {seasonal_order}")
+            
+            # 3. Fit the selected SARIMA model
+            print(f"\n3. FITTING SARIMA MODEL")
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+            
+            sarima_model = SARIMAX(monthly_temp, 
+                                   order=order,
+                                   seasonal_order=seasonal_order,
+                                   enforce_stationarity=False,
+                                   enforce_invertibility=False)
+            sarima_fitted = sarima_model.fit(disp=False)
+            
+            print(f"SARIMA Model Summary:")
+            print(f"• Order: {order}")
+            print(f"• Seasonal Order: {seasonal_order}")
+            print(f"• AIC: {sarima_fitted.aic:.2f}")
+            print(f"• BIC: {sarima_fitted.bic:.2f}")
+            print(f"• Log Likelihood: {sarima_fitted.llf:.2f}")
+            
+            # 4. Model diagnostics
+            print(f"\n4. MODEL DIAGNOSTICS")
+            
+            # Residual analysis
+            residuals = sarima_fitted.resid
+            print(f"• Residual mean: {residuals.mean():.4f}")
+            print(f"• Residual std: {residuals.std():.4f}")
+            
+            # Plot diagnostics
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            
+            # Residuals plot
+            residuals.plot(ax=axes[0,0], title='SARIMA Residuals')
+            axes[0,0].grid(True, alpha=0.3)
+            
+            # Q-Q plot
+            from scipy import stats
+            stats.probplot(residuals.dropna(), dist="norm", plot=axes[0,1])
+            axes[0,1].set_title('Normal Q-Q Plot of Residuals')
+            axes[0,1].grid(True, alpha=0.3)
+            
+            # ACF of residuals
+            from statsmodels.tsa.stattools import acf
+            residual_acf = acf(residuals.dropna(), nlags=20)
+            axes[1,0].stem(range(len(residual_acf)), residual_acf)
+            axes[1,0].set_title('ACF of Residuals')
+            axes[1,0].grid(True, alpha=0.3)
+            
+            # Histogram of residuals
+            residuals.hist(ax=axes[1,1], bins=20, alpha=0.7)
+            axes[1,1].set_title('Distribution of Residuals')
+            axes[1,1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # 5. Generate forecasts for next 5 years (60 months)
+            print(f"\n5. GENERATING SARIMA FORECASTS")
+            forecast_steps = 60  # 5 years * 12 months
+            forecast_result = sarima_fitted.get_forecast(steps=forecast_steps)
+            forecast = forecast_result.predicted_mean
+            forecast_ci = forecast_result.conf_int()
+            
+            # Create future dates
+            last_date = monthly_temp.index[-1]
+            future_dates = pd.date_range(start=last_date + pd.DateOffset(months=1), 
+                                       periods=forecast_steps, freq='M')
+            
+            # 6. Enhanced Visualization
+            print(f"\n6. SARIMA FORECAST VISUALIZATION")
+            fig, axes = plt.subplots(2, 1, figsize=(16, 12))
+            
+            # Main forecast plot
+            # Plot historical data (last 10 years for clarity)
+            hist_data = monthly_temp[-120:]
+            axes[0].plot(hist_data.index, hist_data.values, 
+                        label='Historical (Last 10 years)', color='blue', linewidth=2)
+            
+            # Plot forecasts
+            axes[0].plot(future_dates, forecast, 
+                        label='SARIMA Forecast (2025-2029)', color='red', linewidth=2)
+            
+            # Plot confidence intervals
+            axes[0].fill_between(future_dates, 
+                               forecast_ci.iloc[:, 0], 
+                               forecast_ci.iloc[:, 1], 
+                               color='red', alpha=0.2, label='95% Confidence Interval')
+            
+            axes[0].set_title('SARIMA Temperature Forecast with Seasonal Patterns', 
+                             fontsize=16, fontweight='bold')
+            axes[0].set_xlabel('Date')
+            axes[0].set_ylabel('Temperature (°C)')
+            axes[0].legend()
+            axes[0].grid(True, alpha=0.3)
+            axes[0].tick_params(axis='x', rotation=45)
+            
+            # Seasonal forecast pattern
+            forecast_df = pd.DataFrame({'Date': future_dates, 'Forecast': forecast})
+            forecast_df['Month'] = forecast_df['Date'].dt.month
+            monthly_forecast_avg = forecast_df.groupby('Month')['Forecast'].mean()
+            
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            axes[1].plot(months, monthly_forecast_avg.values, marker='o', linewidth=2, 
+                        markersize=8, color='purple', label='Predicted Monthly Average')
+            
+            # Compare with historical seasonal pattern
+            historical_monthly = monthly_temp.groupby(monthly_temp.index.month).mean()
+            axes[1].plot(months, historical_monthly.values, marker='s', linewidth=2, 
+                        markersize=8, color='orange', alpha=0.7, label='Historical Monthly Average')
+            
+            axes[1].set_title('Seasonal Forecast Pattern vs Historical', fontsize=14, fontweight='bold')
+            axes[1].set_xlabel('Month')
+            axes[1].set_ylabel('Average Temperature (°C)')
+            axes[1].legend()
+            axes[1].grid(True, alpha=0.3)
+            axes[1].tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            plt.show()
+            
+            # 7. Comprehensive forecast analysis
+            print(f"\n7. COMPREHENSIVE FORECAST ANALYSIS")
+            print(f"Average predicted temperature: {forecast.mean():.2f}°C")
+            print(f"Minimum predicted temperature: {forecast.min():.2f}°C")
+            print(f"Maximum predicted temperature: {forecast.max():.2f}°C")
+            print(f"Seasonal amplitude (predicted): {forecast.max() - forecast.min():.2f}°C")
+            
+            # Compare with historical
+            historical_avg = monthly_temp.mean()
+            historical_seasonal_range = monthly_temp.groupby(monthly_temp.index.month).mean().max() - \
+                                       monthly_temp.groupby(monthly_temp.index.month).mean().min()
+            
+            print(f"\nComparison with Historical:")
+            print(f"• Historical average: {historical_avg:.2f}°C")
+            print(f"• Predicted vs Historical difference: {forecast.mean() - historical_avg:.2f}°C")
+            print(f"• Historical seasonal range: {historical_seasonal_range:.2f}°C")
+            print(f"• Change in seasonality: {(forecast.max() - forecast.min()) - historical_seasonal_range:.2f}°C")
+            
+            # Annual forecasts
+            annual_forecasts = []
+            for year in range(5):
+                year_start = year * 12
+                year_end = (year + 1) * 12
+                annual_avg = forecast[year_start:year_end].mean()
+                annual_forecasts.append(annual_avg)
+                print(f"• {2025 + year}: {annual_avg:.2f}°C")
+            
+            # Store results
+            self.models['sarima'] = sarima_fitted
+            self.forecasts['sarima'] = {
+                'dates': future_dates,
+                'forecast': forecast,
+                'confidence_interval': forecast_ci,
+                'historical_data': monthly_temp,
+                'decomposition': decomposition,
+                'order': order,
+                'seasonal_order': seasonal_order,
+                'annual_forecasts': annual_forecasts,
+                'model_summary': {
+                    'aic': sarima_fitted.aic,
+                    'bic': sarima_fitted.bic,
+                    'llf': sarima_fitted.llf,
+                    'avg_forecast': forecast.mean(),
+                    'historical_avg': historical_avg,
+                    'forecast_increase': forecast.mean() - historical_avg,
+                    'seasonal_range_forecast': forecast.max() - forecast.min(),
+                    'seasonal_range_historical': historical_seasonal_range,
+                    'seasonality_change': (forecast.max() - forecast.min()) - historical_seasonal_range
+                }
+            }
+            
+            print(f"\n✅ SARIMA model completed successfully!")
+            print(f"📊 Model captures both trend and seasonal patterns")
+            print(f"🌡️  Projected warming: {forecast.mean() - historical_avg:.2f}°C by 2025-2029")
+            
+        except Exception as e:
+            print(f"SARIMA modeling failed: {e}")
+            import traceback
+            traceback.print_exc()
+            
     def fit_random_forest(self):
         """Fit Random Forest model"""
         print("Fitting Random Forest model...")
@@ -590,6 +857,38 @@ class HeatwavePredictor:
             summary += f"  • Standard Deviation: {forecast_values.std():.2f}°C\n"
             summary += f"  • Seasonal Variation: {forecast_values.max() - forecast_values.min():.2f}°C\n"
         
+        # SARIMA Results
+        if 'sarima' in self.forecasts:
+            sarima_data = self.forecasts['sarima']
+            model_summary = sarima_data['model_summary']
+            
+            summary += f"\n🌊 SARIMA SEASONAL TIME SERIES MODEL:\n"
+            summary += f"{'='*42}\n"
+            summary += f"Model Configuration:\n"
+            summary += f"  • SARIMA Order: {sarima_data['order']}\n"
+            summary += f"  • Seasonal Order: {sarima_data['seasonal_order']}\n"
+            summary += f"  • Model AIC: {model_summary['aic']:.2f}\n"
+            summary += f"  • Model BIC: {model_summary['bic']:.2f}\n"
+            summary += f"  • Log Likelihood: {model_summary['llf']:.2f}\n"
+            
+            summary += f"\nSeasonal Temperature Forecasts:\n"
+            summary += f"  • Historical Average (1972-2024): {model_summary['historical_avg']:.2f}°C\n"
+            summary += f"  • Predicted Average (2025-2029): {model_summary['avg_forecast']:.2f}°C\n"
+            summary += f"  • Predicted Increase: {model_summary['forecast_increase']:.2f}°C\n"
+            summary += f"  • Percentage Increase: {(model_summary['forecast_increase']/model_summary['historical_avg']*100):.1f}%\n"
+            
+            summary += f"\nSeasonal Pattern Analysis:\n"
+            summary += f"  • Historical Seasonal Range: {model_summary['seasonal_range_historical']:.2f}°C\n"
+            summary += f"  • Predicted Seasonal Range: {model_summary['seasonal_range_forecast']:.2f}°C\n"
+            summary += f"  • Change in Seasonality: {model_summary['seasonality_change']:.2f}°C\n"
+            
+            # Annual forecasts if available
+            if 'annual_forecasts' in sarima_data:
+                summary += f"\nSARIMA Annual Forecasts:\n"
+                for i, temp in enumerate(sarima_data['annual_forecasts']):
+                    increase = temp - model_summary['historical_avg']
+                    summary += f"  • {2025 + i}: {temp:.2f}°C (+{increase:.2f}°C from historical)\n"
+        
         # Annual predictions
         if hasattr(self, 'future_predictions'):
             summary += f"\n📅 ANNUAL TEMPERATURE PREDICTIONS:\n"
@@ -617,8 +916,15 @@ class HeatwavePredictor:
         if 'arima' in self.forecasts:
             summary += f"ARIMA Model:\n"
             summary += f"  • Type: Time Series Forecasting\n"
-            summary += f"  • Strengths: Captures seasonal patterns and trends\n"
+            summary += f"  • Strengths: Captures trends and basic patterns\n"
             summary += f"  • Model Fit: AIC={self.forecasts['arima']['model_summary']['aic']:.1f}\n"
+        
+        if 'sarima' in self.forecasts:
+            summary += f"\nSARIMA Model:\n"
+            summary += f"  • Type: Seasonal Time Series Forecasting\n"
+            summary += f"  • Strengths: Captures seasonal cycles and climate patterns\n"
+            summary += f"  • Model Fit: AIC={self.forecasts['sarima']['model_summary']['aic']:.1f}\n"
+            summary += f"  • Seasonal Analysis: Advanced decomposition\n"
         
         if 'random_forest' in self.forecasts:
             rf_perf = self.forecasts['random_forest']
