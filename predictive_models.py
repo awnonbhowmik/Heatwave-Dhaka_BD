@@ -139,8 +139,8 @@ class HeatwavePredictor:
             print(f"AIC: {arima_fitted.aic:.2f}")
             print(f"BIC: {arima_fitted.bic:.2f}")
             
-            # 4. Generate forecasts for next 5 years (60 months)
-            forecast_steps = 60  # 5 years * 12 months
+            # 4. Generate forecasts for next 6 years (72 months)
+            forecast_steps = 72  # 6 years * 12 months
             forecast = arima_fitted.forecast(steps=forecast_steps)
             forecast_ci = arima_fitted.get_forecast(steps=forecast_steps).conf_int()
             
@@ -158,7 +158,7 @@ class HeatwavePredictor:
             
             # Plot forecasts
             plt.plot(future_dates, forecast, 
-                     label='ARIMA Forecast (2025-2029)', color='red', linewidth=2)
+                     label='ARIMA Forecast (2025-2030)', color='red', linewidth=2)
             
             # Plot confidence intervals
             plt.fill_between(future_dates, 
@@ -176,7 +176,7 @@ class HeatwavePredictor:
             plt.show()
             
             # 6. Summary statistics of forecast
-            print(f"\n4. FORECAST SUMMARY (2025-2029)")
+            print(f"\n4. FORECAST SUMMARY (2025-2030)")
             print(f"Average predicted temperature: {forecast.mean():.2f}°C")
             print(f"Minimum predicted temperature: {forecast.min():.2f}°C")
             print(f"Maximum predicted temperature: {forecast.max():.2f}°C")
@@ -189,7 +189,7 @@ class HeatwavePredictor:
             
             # Create annual forecasts dictionary as in main notebook
             annual_forecasts = {}
-            for year in range(5):
+            for year in range(6):  # Changed from 5 to 6 to include 2030
                 year_start = year * 12
                 year_end = (year + 1) * 12
                 annual_avg = forecast[year_start:year_end].mean()
@@ -372,9 +372,9 @@ class HeatwavePredictor:
             plt.tight_layout()
             plt.show()
             
-            # 5. Generate forecasts for next 5 years (60 months)
+            # 5. Generate forecasts for next 6 years (72 months)
             print(f"\n5. GENERATING SARIMA FORECASTS")
-            forecast_steps = 60  # 5 years * 12 months
+            forecast_steps = 72  # 6 years * 12 months
             forecast_result = sarima_fitted.get_forecast(steps=forecast_steps)
             forecast = forecast_result.predicted_mean
             forecast_ci = forecast_result.conf_int()
@@ -396,7 +396,7 @@ class HeatwavePredictor:
             
             # Plot forecasts
             axes[0].plot(future_dates, forecast, 
-                        label='SARIMA Forecast (2025-2029)', color='red', linewidth=2)
+                        label='SARIMA Forecast (2025-2030)', color='red', linewidth=2)
             
             # Plot confidence intervals
             axes[0].fill_between(future_dates, 
@@ -456,13 +456,14 @@ class HeatwavePredictor:
             print(f"• Change in seasonality: {(forecast.max() - forecast.min()) - historical_seasonal_range:.2f}°C")
             
             # Annual forecasts
-            annual_forecasts = []
-            for year in range(5):
+            annual_forecasts = {}
+            for year in range(6):
                 year_start = year * 12
                 year_end = (year + 1) * 12
                 annual_avg = forecast[year_start:year_end].mean()
-                annual_forecasts.append(annual_avg)
-                print(f"• {2025 + year}: {annual_avg:.2f}°C")
+                forecast_year = 2025 + year
+                annual_forecasts[str(forecast_year)] = annual_avg
+                print(f"• {forecast_year}: {annual_avg:.2f}°C")
             
             # Store results
             self.models['sarima'] = sarima_fitted
@@ -474,7 +475,8 @@ class HeatwavePredictor:
                 'decomposition': decomposition,
                 'order': order,
                 'seasonal_order': seasonal_order,
-                'annual_forecasts': annual_forecasts,
+                'annual_forecasts': list(annual_forecasts.values()),
+                'future_forecast': annual_forecasts,
                 'model_summary': {
                     'aic': sarima_fitted.aic,
                     'bic': sarima_fitted.bic,
@@ -490,7 +492,7 @@ class HeatwavePredictor:
             
             print(f"\n✅ SARIMA model completed successfully!")
             print(f"📊 Model captures both trend and seasonal patterns")
-            print(f"🌡️  Projected warming: {forecast.mean() - historical_avg:.2f}°C by 2025-2029")
+            print(f"🌡️  Projected warming: {forecast.mean() - historical_avg:.2f}°C by 2025-2030")
             
         except Exception as e:
             print(f"SARIMA modeling failed: {e}")
@@ -768,13 +770,13 @@ class HeatwavePredictor:
             # Prepare last sequence for forecasting
             last_sequence = scaled_features[-sequence_length:].reshape(1, sequence_length, len(available_features))
             
-            # Generate future predictions (next 60 months = 5 years)
+            # Generate future predictions (next 72 months = 6 years)
             future_predictions = []
             current_sequence = last_sequence.copy()
             
-            print(f"Generating 60-month (5-year) forecast...")
+            print(f"Generating 72-month (6-year) forecast...")
             
-            for month in range(60):
+            for month in range(72):
                 # Predict next value
                 next_pred = model.predict(current_sequence, verbose=0)
                 future_predictions.append(next_pred[0, 0])
@@ -795,11 +797,11 @@ class HeatwavePredictor:
             # Create future dates
             last_date = lstm_data.index[-1]
             future_dates = pd.date_range(start=last_date + pd.DateOffset(months=1), 
-                                       periods=60, freq='M')
+                                       periods=72, freq='M')
             
             # Convert to annual averages
             annual_forecasts = []
-            for year in range(5):
+            for year in range(6):
                 year_start = year * 12
                 year_end = (year + 1) * 12
                 annual_avg = future_predictions_original[year_start:year_end].mean()
@@ -1065,7 +1067,7 @@ class HeatwavePredictor:
         except Exception as e:
             print(f"XGBoost modeling failed: {e}")
             
-    def generate_future_predictions(self, years=5):
+    def generate_future_predictions(self, years=6):
         """Generate future predictions for the next few years"""
         print(f"Generating predictions for next {years} years...")
         
@@ -1134,7 +1136,7 @@ class HeatwavePredictor:
             
             # Plot forecasts
             axes[0,0].plot(arima_data['dates'], arima_data['forecast'], 
-                         label='ARIMA Forecast (2025-2029)', color='red', linewidth=2)
+                         label='ARIMA Forecast (2025-2030)', color='red', linewidth=2)
             
             # Plot confidence intervals
             axes[0,0].fill_between(arima_data['dates'], 
@@ -1151,7 +1153,7 @@ class HeatwavePredictor:
         
         # 2. Annual predictions comparison
         if hasattr(self, 'future_predictions'):
-            years_range = list(range(2020, 2030))  # Show recent history + predictions
+            years_range = list(range(2020, 2031))  # Show recent history + predictions
             
             # Historical annual data
             historical_annual = self.data.groupby('Year')['Dhaka Temperature [2 m elevation corrected]'].mean()
@@ -1197,7 +1199,7 @@ class HeatwavePredictor:
         # 4. Prediction summary statistics
         axes[1,1].axis('off')
         
-        summary_text = "PREDICTION SUMMARY (2025-2029)\n" + "="*35 + "\n\n"
+        summary_text = "PREDICTION SUMMARY (2025-2030)\n" + "="*35 + "\n\n"
         
         if 'arima' in self.forecasts:
             arima_summary = self.forecasts['arima']['model_summary']
@@ -1239,7 +1241,7 @@ class HeatwavePredictor:
             return "No predictions available."
         
         summary = "\n" + "="*70 + "\n"
-        summary += "🔮 COMPREHENSIVE PREDICTION SUMMARY (2025-2029)\n"
+        summary += "🔮 COMPREHENSIVE PREDICTION SUMMARY (2025-2030)\n"
         summary += "="*70 + "\n"
         
         # ARIMA Results
@@ -1257,7 +1259,7 @@ class HeatwavePredictor:
             
             summary += f"\nTemperature Forecasts:\n"
             summary += f"  • Historical Average (1972-2024): {model_summary['historical_avg']:.2f}°C\n"
-            summary += f"  • Predicted Average (2025-2029): {model_summary['avg_forecast']:.2f}°C\n"
+            summary += f"  • Predicted Average (2025-2030): {model_summary['avg_forecast']:.2f}°C\n"
             summary += f"  • Predicted Increase: {model_summary['forecast_increase']:.2f}°C\n"
             summary += f"  • Percentage Increase: {(model_summary['forecast_increase']/model_summary['historical_avg']*100):.1f}%\n"
             
@@ -1285,7 +1287,7 @@ class HeatwavePredictor:
             
             summary += f"\nSeasonal Temperature Forecasts:\n"
             summary += f"  • Historical Average (1972-2024): {model_summary['historical_avg']:.2f}°C\n"
-            summary += f"  • Predicted Average (2025-2029): {model_summary['avg_forecast']:.2f}°C\n"
+            summary += f"  • Predicted Average (2025-2030): {model_summary['avg_forecast']:.2f}°C\n"
             summary += f"  • Predicted Increase: {model_summary['forecast_increase']:.2f}°C\n"
             summary += f"  • Percentage Increase: {(model_summary['forecast_increase']/model_summary['historical_avg']*100):.1f}%\n"
             
@@ -1381,7 +1383,7 @@ class HeatwavePredictor:
                 risk_level = "🟢 LOW RISK"
             
             summary += f"Climate Risk Level: {risk_level}\n"
-            summary += f"Projected warming: {increase:.2f}°C by 2029\n"
+            summary += f"Projected warming: {increase:.2f}°C by 2030\n"
             
             # Heatwave implications
             current_heatwave_days = self.data[self.data['Heatwave']].groupby('Year').size().mean()
