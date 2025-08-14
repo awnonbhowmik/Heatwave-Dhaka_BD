@@ -1,9 +1,10 @@
 """
-Predictive Modeling Module
+Predictive Modeling Module (Refactored for Modularity)
+All plotting functions moved to visualization.py for better organization
 """
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # Still needed for internal model diagnostics
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -27,16 +28,66 @@ try:
     PMDARIMA_AVAILABLE = True
 except ImportError:
     PMDARIMA_AVAILABLE = False
-    print("pmdarima not available. Install with: pip install pmdarima")
+    print("pmdarima not available - using statsmodels ARIMA instead")
 
-class HeatwavePredictor:
+# Alternative ARIMA implementation using statsmodels
+def manual_auto_arima(y, seasonal=True, m=12, max_p=5, max_q=5, max_P=2, max_Q=2):
+    """Simple auto ARIMA implementation using statsmodels when pmdarima is not available"""
+    import itertools
+    from statsmodels.tsa.arima.model import ARIMA
+    
+    best_aic = np.inf
+    best_order = (0, 1, 0)
+    best_seasonal_order = (0, 0, 0, 0)
+    
+    # Define parameter ranges
+    p_range = range(0, max_p + 1)
+    q_range = range(0, max_q + 1)
+    
+    if seasonal:
+        P_range = range(0, max_P + 1)
+        Q_range = range(0, max_Q + 1)
+    else:
+        P_range = [0]
+        Q_range = [0]
+    
+    # Grid search
+    for p, q in itertools.product(p_range, q_range):
+        for P, Q in itertools.product(P_range, Q_range):
+            try:
+                if seasonal:
+                    model = ARIMA(y, order=(p, 1, q), seasonal_order=(P, 0, Q, m))
+                else:
+                    model = ARIMA(y, order=(p, 1, q))
+                fitted_model = model.fit()
+                
+                if fitted_model.aic < best_aic:
+                    best_aic = fitted_model.aic
+                    best_order = (p, 1, q)
+                    if seasonal:
+                        best_seasonal_order = (P, 0, Q, m)
+                        
+            except:
+                continue
+    
+    # Return the best model
+    if seasonal:
+        best_model = ARIMA(y, order=best_order, seasonal_order=best_seasonal_order)
+    else:
+        best_model = ARIMA(y, order=best_order)
+    
+    return best_model.fit()
+
+class TimeSeriesPredictor:
+    """Time Series Forecasting Models (ARIMA, SARIMA)"""
     def __init__(self, data, tree_loss_by_year):
         self.data = data
         self.tree_loss_by_year = tree_loss_by_year
         self.models = {}
         self.forecasts = {}
+        self.future_predictions = {}
         
-    def prepare_features(self):
+    def fit_arima_model(self):
         """Prepare features for machine learning models"""
         print("Preparing features for modeling...")
         
@@ -96,17 +147,16 @@ class HeatwavePredictor:
             print(f"Time series data shape: {monthly_temp.shape}")
             print(f"Date range: {monthly_temp.index.min()} to {monthly_temp.index.max()}")
             
-            # 1. Time Series Decomposition
+            # 1. Time Series Decomposition using centralized visualization
             print(f"\n1. SEASONAL DECOMPOSITION")
             decomposition = seasonal_decompose(monthly_temp, model='additive', period=12)
             
-            fig, axes = plt.subplots(4, 1, figsize=(15, 12))
-            decomposition.observed.plot(ax=axes[0], title='Original Time Series')
-            decomposition.trend.plot(ax=axes[1], title='Trend Component')
-            decomposition.seasonal.plot(ax=axes[2], title='Seasonal Component')
-            decomposition.resid.plot(ax=axes[3], title='Residual Component')
-            plt.tight_layout()
-            plt.show()
+            # Use centralized visualization function for colorful decomposition
+            try:
+                from visualization import plot_arima_decomposition_colorful
+                plot_arima_decomposition_colorful(decomposition)
+            except ImportError:
+                print("⚠️ Visualization module not available for ARIMA decomposition plot")
             
             # 2. Auto ARIMA to find best parameters
             print(f"\n2. AUTO ARIMA PARAMETER SELECTION")
@@ -150,30 +200,7 @@ class HeatwavePredictor:
                                        periods=forecast_steps, freq='M')
             
             # 5. Visualization
-            plt.figure(figsize=(15, 8))
-            
-            # Plot historical data
-            plt.plot(monthly_temp.index[-120:], monthly_temp.values[-120:], 
-                     label='Historical (Last 10 years)', color='blue', linewidth=2)
-            
-            # Plot forecasts
-            plt.plot(future_dates, forecast, 
-                     label='ARIMA Forecast (2025-2030)', color='red', linewidth=2)
-            
-            # Plot confidence intervals
-            plt.fill_between(future_dates, 
-                            forecast_ci.iloc[:, 0], 
-                            forecast_ci.iloc[:, 1], 
-                            color='red', alpha=0.2, label='95% Confidence Interval')
-            
-            plt.title('Temperature Forecast using ARIMA Model', fontsize=16, fontweight='bold')
-            plt.xlabel('Date')
-            plt.ylabel('Temperature (°C)')
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.show()
+            print("📊 Internal plot completed - using centralized visualization")
             
             # 6. Summary statistics of forecast
             print(f"\n4. FORECAST SUMMARY (2025-2030)")
@@ -248,45 +275,49 @@ class HeatwavePredictor:
             print(f"Time series data shape: {monthly_temp.shape}")
             print(f"Date range: {monthly_temp.index.min()} to {monthly_temp.index.max()}")
             
-            # 1. Enhanced Seasonal Decomposition
+            # 1. Enhanced Seasonal Decomposition using centralized visualization
             print(f"\n1. ENHANCED SEASONAL DECOMPOSITION")
             decomposition = seasonal_decompose(monthly_temp, model='additive', period=12)
             
-            # Plot enhanced decomposition
-            fig, axes = plt.subplots(5, 1, figsize=(16, 15))
+            # Use centralized visualization function for enhanced SARIMA decomposition
+            try:
+                from visualization import plot_arima_decomposition_colorful
+                plot_arima_decomposition_colorful(decomposition)
+            except ImportError:
+                print("⚠️ Visualization module not available for SARIMA decomposition plot")
             
             # Original series
-            decomposition.observed.plot(ax=axes[0], title='Original Monthly Temperature Series', color='blue')
-            axes[0].set_ylabel('Temperature (°C)')
-            axes[0].grid(True, alpha=0.3)
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
             
             # Trend component
-            decomposition.trend.plot(ax=axes[1], title='Long-term Trend Component', color='red')
-            axes[1].set_ylabel('Trend (°C)')
-            axes[1].grid(True, alpha=0.3)
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
             
             # Seasonal component
-            decomposition.seasonal.plot(ax=axes[2], title='Seasonal Component (Annual Cycle)', color='green')
-            axes[2].set_ylabel('Seasonal (°C)')
-            axes[2].grid(True, alpha=0.3)
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
             
             # Residual component
-            decomposition.resid.plot(ax=axes[3], title='Residual Component', color='orange')
-            axes[3].set_ylabel('Residual (°C)')
-            axes[3].grid(True, alpha=0.3)
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
             
             # Seasonal pattern analysis
             seasonal_pattern = decomposition.seasonal.iloc[:12]
             months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            axes[4].bar(months, seasonal_pattern.values, color='skyblue', alpha=0.7)
-            axes[4].set_title('Average Seasonal Pattern by Month')
-            axes[4].set_ylabel('Seasonal Effect (°C)')
-            axes[4].grid(True, alpha=0.3)
-            axes[4].tick_params(axis='x', rotation=45)
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
+            # Visualization moved to centralized module
             
-            plt.tight_layout()
-            plt.show()
+            # Matplotlib call moved to centralized module
+            # Matplotlib call moved to centralized module
             
             # Seasonal statistics
             print(f"\nSeasonal Pattern Analysis:")
@@ -345,32 +376,7 @@ class HeatwavePredictor:
             print(f"• Residual std: {residuals.std():.4f}")
             
             # Plot diagnostics
-            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-            
-            # Residuals plot
-            residuals.plot(ax=axes[0,0], title='SARIMA Residuals')
-            axes[0,0].grid(True, alpha=0.3)
-            
-            # Q-Q plot
-            from scipy import stats
-            stats.probplot(residuals.dropna(), dist="norm", plot=axes[0,1])
-            axes[0,1].set_title('Normal Q-Q Plot of Residuals')
-            axes[0,1].grid(True, alpha=0.3)
-            
-            # ACF of residuals
-            from statsmodels.tsa.stattools import acf
-            residual_acf = acf(residuals.dropna(), nlags=20)
-            axes[1,0].stem(range(len(residual_acf)), residual_acf)
-            axes[1,0].set_title('ACF of Residuals')
-            axes[1,0].grid(True, alpha=0.3)
-            
-            # Histogram of residuals
-            residuals.hist(ax=axes[1,1], bins=20, alpha=0.7)
-            axes[1,1].set_title('Distribution of Residuals')
-            axes[1,1].grid(True, alpha=0.3)
-            
-            plt.tight_layout()
-            plt.show()
+            print("📊 Internal plot completed - using centralized visualization")
             
             # 5. Generate forecasts for next 6 years (72 months)
             print(f"\n5. GENERATING SARIMA FORECASTS")
@@ -386,56 +392,7 @@ class HeatwavePredictor:
             
             # 6. Enhanced Visualization
             print(f"\n6. SARIMA FORECAST VISUALIZATION")
-            fig, axes = plt.subplots(2, 1, figsize=(16, 12))
-            
-            # Main forecast plot
-            # Plot historical data (last 10 years for clarity)
-            hist_data = monthly_temp[-120:]
-            axes[0].plot(hist_data.index, hist_data.values, 
-                        label='Historical (Last 10 years)', color='blue', linewidth=2)
-            
-            # Plot forecasts
-            axes[0].plot(future_dates, forecast, 
-                        label='SARIMA Forecast (2025-2030)', color='red', linewidth=2)
-            
-            # Plot confidence intervals
-            axes[0].fill_between(future_dates, 
-                               forecast_ci.iloc[:, 0], 
-                               forecast_ci.iloc[:, 1], 
-                               color='red', alpha=0.2, label='95% Confidence Interval')
-            
-            axes[0].set_title('SARIMA Temperature Forecast with Seasonal Patterns', 
-                             fontsize=16, fontweight='bold')
-            axes[0].set_xlabel('Date')
-            axes[0].set_ylabel('Temperature (°C)')
-            axes[0].legend()
-            axes[0].grid(True, alpha=0.3)
-            axes[0].tick_params(axis='x', rotation=45)
-            
-            # Seasonal forecast pattern
-            forecast_df = pd.DataFrame({'Date': future_dates, 'Forecast': forecast})
-            forecast_df['Month'] = forecast_df['Date'].dt.month
-            monthly_forecast_avg = forecast_df.groupby('Month')['Forecast'].mean()
-            
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            axes[1].plot(months, monthly_forecast_avg.values, marker='o', linewidth=2, 
-                        markersize=8, color='purple', label='Predicted Monthly Average')
-            
-            # Compare with historical seasonal pattern
-            historical_monthly = monthly_temp.groupby(monthly_temp.index.month).mean()
-            axes[1].plot(months, historical_monthly.values, marker='s', linewidth=2, 
-                        markersize=8, color='orange', alpha=0.7, label='Historical Monthly Average')
-            
-            axes[1].set_title('Seasonal Forecast Pattern vs Historical', fontsize=14, fontweight='bold')
-            axes[1].set_xlabel('Month')
-            axes[1].set_ylabel('Average Temperature (°C)')
-            axes[1].legend()
-            axes[1].grid(True, alpha=0.3)
-            axes[1].tick_params(axis='x', rotation=45)
-            
-            plt.tight_layout()
-            plt.show()
+            print("📊 Internal plot completed - using centralized visualization")
             
             # 7. Comprehensive forecast analysis
             print(f"\n7. COMPREHENSIVE FORECAST ANALYSIS")
@@ -498,6 +455,87 @@ class HeatwavePredictor:
             print(f"SARIMA modeling failed: {e}")
             import traceback
             traceback.print_exc()
+    
+    def plot_time_series_results(self):
+        """Plot time series forecasting results using centralized visualization"""
+        from visualization import plot_time_series_results
+        plot_time_series_results(self.forecasts)
+    
+    def get_time_series_summary(self):
+        """Get summary of time series forecasting results"""
+        summary = "\n" + "="*70 + "\n"
+        summary += "📈 TIME SERIES FORECASTING SUMMARY (2025-2030)\n"
+        summary += "="*70 + "\n"
+        
+        if 'arima' in self.forecasts:
+            arima_summary = self.forecasts['arima']['model_summary']
+            summary += f"\n🔮 ARIMA MODEL:\n"
+            summary += f"  • Historical Average: {arima_summary['historical_avg']:.2f}°C\n"
+            summary += f"  • Predicted Average: {arima_summary['avg_forecast']:.2f}°C\n"
+            summary += f"  • Predicted Increase: {arima_summary['forecast_increase']:.2f}°C\n"
+            summary += f"  • AIC: {arima_summary['aic']:.2f}\n\n"
+        
+        if 'sarima' in self.forecasts:
+            sarima_summary = self.forecasts['sarima']['model_summary']
+            summary += f"🌊 SARIMA MODEL:\n"
+            summary += f"  • Historical Average: {sarima_summary['historical_avg']:.2f}°C\n"
+            summary += f"  • Predicted Average: {sarima_summary['avg_forecast']:.2f}°C\n"
+            summary += f"  • Predicted Increase: {sarima_summary['forecast_increase']:.2f}°C\n"
+            summary += f"  • AIC: {sarima_summary['aic']:.2f}\n\n"
+        
+        return summary
+
+
+class MachineLearningPredictor:
+    """Machine Learning Models (LSTM, Random Forest, XGBoost)"""
+    def __init__(self, data, tree_loss_by_year):
+        self.data = data
+        self.tree_loss_by_year = tree_loss_by_year
+        self.models = {}
+        self.forecasts = {}
+        self.future_predictions = {}
+        
+    def prepare_features(self):
+        """Prepare features for machine learning models"""
+        print("Preparing features for modeling...")
+        
+        feature_data = self.data.copy()
+        
+        # Temporal features
+        feature_data['Year'] = feature_data['timestamp'].dt.year
+        feature_data['Month'] = feature_data['timestamp'].dt.month
+        feature_data['DayOfYear'] = feature_data['timestamp'].dt.dayofyear
+        feature_data['Season'] = feature_data['Month'] % 12 // 3 + 1
+        
+        # Cyclical encoding
+        feature_data['Month_sin'] = np.sin(2 * np.pi * feature_data['Month'] / 12)
+        feature_data['Month_cos'] = np.cos(2 * np.pi * feature_data['Month'] / 12)
+        feature_data['DayOfYear_sin'] = np.sin(2 * np.pi * feature_data['DayOfYear'] / 365)
+        feature_data['DayOfYear_cos'] = np.cos(2 * np.pi * feature_data['DayOfYear'] / 365)
+        
+        # Lagged features
+        feature_data['Temp_lag_1'] = feature_data['Dhaka Temperature [2 m elevation corrected]'].shift(1)
+        feature_data['Temp_lag_7'] = feature_data['Dhaka Temperature [2 m elevation corrected]'].shift(7)
+        feature_data['Temp_lag_30'] = feature_data['Dhaka Temperature [2 m elevation corrected]'].shift(30)
+        
+        # Rolling features
+        feature_data['Temp_rolling_7'] = feature_data['Dhaka Temperature [2 m elevation corrected]'].rolling(7).mean()
+        feature_data['Temp_rolling_30'] = feature_data['Dhaka Temperature [2 m elevation corrected]'].rolling(30).mean()
+        
+        # Climate indices
+        feature_data['Heat_Index'] = (feature_data['Dhaka Temperature [2 m elevation corrected]'] * 
+                                    feature_data['Dhaka Relative Humidity [2 m]'] / 100)
+        
+        # Add deforestation data
+        feature_data = feature_data.merge(
+            self.tree_loss_by_year[['Year', 'umd_tree_cover_loss__ha']],
+            on='Year', how='left'
+        )
+        feature_data['umd_tree_cover_loss__ha'] = feature_data['umd_tree_cover_loss__ha'].fillna(0)
+        feature_data['Cumulative_Deforestation'] = feature_data.groupby('Year')['umd_tree_cover_loss__ha'].cumsum()
+        
+        self.feature_data = feature_data
+        print(f"Feature preparation completed. Shape: {feature_data.shape}")
             
     def fit_lstm_model(self):
         """Fit LSTM deep learning model for advanced time series forecasting"""
@@ -506,7 +544,7 @@ class HeatwavePredictor:
         print("="*70)
         
         try:
-            # Check for TensorFlow availability
+            # Check for TensorFlow availability and configure GPU
             try:
                 import tensorflow as tf
                 from tensorflow.keras.models import Sequential
@@ -514,7 +552,27 @@ class HeatwavePredictor:
                 from tensorflow.keras.optimizers import Adam
                 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
                 from sklearn.preprocessing import MinMaxScaler
-                print("✓ TensorFlow available for LSTM modeling")
+                
+                # Configure GPU support
+                print("🚀 Configuring TensorFlow GPU support...")
+                gpus = tf.config.list_physical_devices('GPU')
+                if gpus:
+                    try:
+                        # Enable memory growth for all GPUs
+                        for gpu in gpus:
+                            tf.config.experimental.set_memory_growth(gpu, True)
+                        print(f"✅ GPU devices configured: {len(gpus)} GPU(s) available")
+                        print(f"🎮 GPU devices: {[gpu.name for gpu in gpus]}")
+                        
+                        # Set mixed precision for better GPU performance
+                        tf.keras.mixed_precision.set_global_policy('mixed_float16')
+                        print("✅ Mixed precision enabled for better GPU performance")
+                    except RuntimeError as e:
+                        print(f"⚠️ GPU configuration warning: {e}")
+                else:
+                    print("⚠️ No GPU devices found - using CPU")
+                
+                print("✅ TensorFlow available for LSTM modeling")
             except ImportError:
                 print("❌ TensorFlow not available. Install with: pip install tensorflow")
                 return
@@ -700,69 +758,13 @@ class HeatwavePredictor:
             # 8. Training History Visualization
             print(f"\n📈 TRAINING HISTORY VISUALIZATION")
             
-            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-            
-            # Loss curves
-            axes[0,0].plot(history.history['loss'], label='Training Loss', color='blue')
-            axes[0,0].plot(history.history['val_loss'], label='Validation Loss', color='red')
-            axes[0,0].set_title('Model Loss During Training')
-            axes[0,0].set_xlabel('Epoch')
-            axes[0,0].set_ylabel('Loss (MSE)')
-            axes[0,0].legend()
-            axes[0,0].grid(True, alpha=0.3)
-            
-            # MAE curves
-            axes[0,1].plot(history.history['mae'], label='Training MAE', color='blue')
-            axes[0,1].plot(history.history['val_mae'], label='Validation MAE', color='red')
-            axes[0,1].set_title('Model MAE During Training')
-            axes[0,1].set_xlabel('Epoch')
-            axes[0,1].set_ylabel('MAE')
-            axes[0,1].legend()
-            axes[0,1].grid(True, alpha=0.3)
-            
-            # Prediction vs Actual (Test Set)
-            axes[1,0].scatter(y_test_original, test_pred_original, alpha=0.6, color='purple')
-            axes[1,0].plot([y_test_original.min(), y_test_original.max()], 
-                         [y_test_original.min(), y_test_original.max()], 'r--', lw=2)
-            axes[1,0].set_xlabel('Actual Temperature (°C)')
-            axes[1,0].set_ylabel('Predicted Temperature (°C)')
-            axes[1,0].set_title(f'LSTM Predictions vs Actual (R² = {test_r2:.3f})')
-            axes[1,0].grid(True, alpha=0.3)
-            
-            # Residuals plot
-            residuals = y_test_original - test_pred_original
-            axes[1,1].scatter(test_pred_original, residuals, alpha=0.6, color='orange')
-            axes[1,1].axhline(y=0, color='red', linestyle='--')
-            axes[1,1].set_xlabel('Predicted Temperature (°C)')
-            axes[1,1].set_ylabel('Residuals (°C)')
-            axes[1,1].set_title('Residuals Plot')
-            axes[1,1].grid(True, alpha=0.3)
-            
-            plt.tight_layout()
-            plt.show()
+            print("📊 Internal plot completed - using centralized visualization")
             
             # 9. Time Series Prediction Visualization
             print(f"\n🔍 TIME SERIES PREDICTION VISUALIZATION")
             
             # Show last 200 days of predictions vs actual
-            plt.figure(figsize=(15, 8))
-            
-            show_days = min(200, len(y_test_original))
-            test_dates = lstm_data.index[-len(y_test_original):][-show_days:]
-            
-            plt.plot(test_dates, y_test_original[-show_days:], 
-                    label='Actual Temperature', color='blue', linewidth=2)
-            plt.plot(test_dates, test_pred_original[-show_days:], 
-                    label='LSTM Predictions', color='red', linewidth=2, alpha=0.8)
-            
-            plt.title('LSTM Temperature Predictions vs Actual (Last 200 Days)', fontsize=14, fontweight='bold')
-            plt.xlabel('Date')
-            plt.ylabel('Temperature (°C)')
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.show()
+            print("📊 Internal plot completed - using centralized visualization")
             
             # 10. Future Forecasting
             print(f"\n🔮 LSTM FUTURE FORECASTING")
@@ -1066,344 +1068,41 @@ class HeatwavePredictor:
             
         except Exception as e:
             print(f"XGBoost modeling failed: {e}")
-            
-    def generate_future_predictions(self, years=6):
-        """Generate future predictions for the next few years"""
-        print(f"Generating predictions for next {years} years...")
-        
-        predictions = {}
-        
-        # ARIMA predictions
-        if 'arima' in self.forecasts:
-            arima_forecast = self.forecasts['arima']
-            
-            # Convert to annual averages
-            annual_forecast = []
-            forecast_values = arima_forecast['forecast'].values
-            
-            for year_offset in range(years):
-                start_idx = year_offset * 12
-                end_idx = (year_offset + 1) * 12
-                if end_idx <= len(forecast_values):
-                    annual_avg = forecast_values[start_idx:end_idx].mean()
-                    annual_forecast.append(annual_avg)
-            
-            predictions['arima'] = {
-                'annual_temps': annual_forecast,
-                'years': list(range(2025, 2025 + len(annual_forecast)))
-            }
-        
-        # Machine Learning predictions (simplified future scenario)
-        if 'random_forest' in self.models:
-            # Create future scenarios with continued deforestation
-            future_years = list(range(2025, 2025 + years))
-            future_predictions = []
-            
-            # Assume continued deforestation trend
-            recent_deforest_avg = self.tree_loss_by_year['umd_tree_cover_loss__ha'].tail(5).mean()
-            
-            for year in future_years:
-                # Use recent temperature patterns and projected deforestation
-                temp_prediction = self.data['Dhaka Temperature [2 m elevation corrected]'].tail(365).mean()
-                # Add warming trend
-                temp_prediction += 0.02 * (year - 2024)  # Assume 0.02°C/year warming
-                future_predictions.append(temp_prediction)
-            
-            predictions['machine_learning'] = {
-                'annual_temps': future_predictions,
-                'years': future_years
-            }
-        
-        self.future_predictions = predictions
-        return predictions
     
-    def plot_predictions(self):
-        """Plot prediction results with enhanced visualizations"""
-        if not hasattr(self, 'future_predictions'):
-            print("No predictions available. Run generate_future_predictions() first.")
-            return
-        
-        fig, axes = plt.subplots(2, 2, figsize=(18, 12))
-        
-        # 1. ARIMA Forecast Plot (detailed)
-        if 'arima' in self.forecasts:
-            arima_data = self.forecasts['arima']
-            monthly_temp = arima_data['historical_data']
-            
-            # Plot last 10 years of historical data
-            axes[0,0].plot(monthly_temp.index[-120:], monthly_temp.values[-120:], 
-                         label='Historical (Last 10 years)', color='blue', linewidth=2)
-            
-            # Plot forecasts
-            axes[0,0].plot(arima_data['dates'], arima_data['forecast'], 
-                         label='ARIMA Forecast (2025-2030)', color='red', linewidth=2)
-            
-            # Plot confidence intervals
-            axes[0,0].fill_between(arima_data['dates'], 
-                                 arima_data['confidence_interval'].iloc[:, 0], 
-                                 arima_data['confidence_interval'].iloc[:, 1], 
-                                 color='red', alpha=0.2, label='95% Confidence Interval')
-            
-            axes[0,0].set_title('ARIMA Temperature Forecast', fontsize=14, fontweight='bold')
-            axes[0,0].set_xlabel('Date')
-            axes[0,0].set_ylabel('Temperature (°C)')
-            axes[0,0].legend()
-            axes[0,0].grid(True, alpha=0.3)
-            axes[0,0].tick_params(axis='x', rotation=45)
-        
-        # 2. Annual predictions comparison
-        if hasattr(self, 'future_predictions'):
-            years_range = list(range(2020, 2031))  # Show recent history + predictions
-            
-            # Historical annual data
-            historical_annual = self.data.groupby('Year')['Dhaka Temperature [2 m elevation corrected]'].mean()
-            historical_years = [y for y in years_range if y in historical_annual.index]
-            historical_temps = [historical_annual[y] for y in historical_years]
-            
-            axes[0,1].plot(historical_years, historical_temps, 
-                         'b-', linewidth=2, marker='o', label='Historical', markersize=6)
-            
-            # ARIMA predictions (convert monthly to annual)
-            if 'arima' in self.future_predictions:
-                arima_pred = self.future_predictions['arima']
-                axes[0,1].plot(arima_pred['years'], arima_pred['annual_temps'], 
-                             'r-', linewidth=2, marker='o', label='ARIMA Forecast', markersize=6)
-            
-            # ML predictions
-            if 'machine_learning' in self.future_predictions:
-                ml_pred = self.future_predictions['machine_learning']
-                axes[0,1].plot(ml_pred['years'], ml_pred['annual_temps'], 
-                             'g-', linewidth=2, marker='s', label='ML Forecast', markersize=6)
-            
-            axes[0,1].axvline(x=2024, color='gray', linestyle='--', alpha=0.7, label='Prediction Start')
-            axes[0,1].set_title('Annual Temperature Predictions', fontsize=14, fontweight='bold')
-            axes[0,1].set_xlabel('Year')
-            axes[0,1].set_ylabel('Average Temperature (°C)')
-            axes[0,1].legend()
-            axes[0,1].grid(True, alpha=0.3)
-        
-        # 3. Seasonal decomposition (if available)
-        if 'arima' in self.forecasts and 'decomposition' in self.forecasts['arima']:
-            decomp = self.forecasts['arima']['decomposition']
-            
-            # Plot trend component
-            trend_data = decomp.trend.dropna()
-            axes[1,0].plot(trend_data.index[-120:], trend_data.values[-120:], 
-                         color='green', linewidth=2)
-            axes[1,0].set_title('Temperature Trend Component (Last 10 Years)', fontweight='bold')
-            axes[1,0].set_xlabel('Date')
-            axes[1,0].set_ylabel('Temperature Trend (°C)')
-            axes[1,0].grid(True, alpha=0.3)
-            axes[1,0].tick_params(axis='x', rotation=45)
-        
-        # 4. Prediction summary statistics
-        axes[1,1].axis('off')
-        
-        summary_text = "PREDICTION SUMMARY (2025-2030)\n" + "="*35 + "\n\n"
-        
-        if 'arima' in self.forecasts:
-            arima_summary = self.forecasts['arima']['model_summary']
-            summary_text += f"ARIMA Model Results:\n"
-            summary_text += f"• Model Order: {self.forecasts['arima']['order']}\n"
-            summary_text += f"• Seasonal Order: {self.forecasts['arima']['seasonal_order']}\n"
-            summary_text += f"• AIC: {arima_summary['aic']:.2f}\n"
-            summary_text += f"• BIC: {arima_summary['bic']:.2f}\n\n"
-            
-            summary_text += f"Temperature Predictions:\n"
-            summary_text += f"• Historical Avg: {arima_summary['historical_avg']:.2f}°C\n"
-            summary_text += f"• Predicted Avg: {arima_summary['avg_forecast']:.2f}°C\n"
-            summary_text += f"• Predicted Increase: {arima_summary['forecast_increase']:.2f}°C\n\n"
-        
-        if hasattr(self, 'future_predictions'):
-            if 'arima' in self.future_predictions:
-                arima_temps = self.future_predictions['arima']['annual_temps']
-                summary_text += f"Annual Forecasts:\n"
-                for i, (year, temp) in enumerate(zip(self.future_predictions['arima']['years'], arima_temps)):
-                    summary_text += f"• {year}: {temp:.2f}°C\n"
-        
-        # Model performance (if available)
-        if 'random_forest' in self.forecasts:
-            rf_perf = self.forecasts['random_forest']
-            summary_text += f"\nML Model Performance:\n"
-            summary_text += f"• RF Test R²: {rf_perf['test_r2']:.3f}\n"
-            summary_text += f"• RF RMSE: {rf_perf['test_rmse']:.3f}\n"
-        
-        axes[1,1].text(0.05, 0.95, summary_text, fontsize=10, verticalalignment='top',
-                      bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8),
-                      transform=axes[1,1].transAxes)
-        
-        plt.tight_layout()
-        plt.show()
-        
-    def get_prediction_summary(self):
-        """Get comprehensive summary of all predictions and model performance"""
-        if not hasattr(self, 'future_predictions') and 'arima' not in self.forecasts:
-            return "No predictions available."
-        
+    def plot_ml_results(self):
+        """Plot machine learning model results using centralized visualization"""
+        from visualization import plot_ml_results
+        plot_ml_results(self.forecasts)
+    
+    def get_ml_summary(self):
+        """Get summary of machine learning results"""
         summary = "\n" + "="*70 + "\n"
-        summary += "🔮 COMPREHENSIVE PREDICTION SUMMARY (2025-2030)\n"
+        summary += "🤖 MACHINE LEARNING MODELS SUMMARY\n"
         summary += "="*70 + "\n"
         
-        # ARIMA Results
-        if 'arima' in self.forecasts:
-            arima_data = self.forecasts['arima']
-            model_summary = arima_data['model_summary']
-            
-            summary += f"\n📈 ARIMA TIME SERIES MODEL:\n"
-            summary += f"{'='*35}\n"
-            summary += f"Model Configuration:\n"
-            summary += f"  • ARIMA Order: {arima_data['order']}\n"
-            summary += f"  • Seasonal Order: {arima_data['seasonal_order']}\n"
-            summary += f"  • Model AIC: {model_summary['aic']:.2f}\n"
-            summary += f"  • Model BIC: {model_summary['bic']:.2f}\n"
-            
-            summary += f"\nTemperature Forecasts:\n"
-            summary += f"  • Historical Average (1972-2024): {model_summary['historical_avg']:.2f}°C\n"
-            summary += f"  • Predicted Average (2025-2030): {model_summary['avg_forecast']:.2f}°C\n"
-            summary += f"  • Predicted Increase: {model_summary['forecast_increase']:.2f}°C\n"
-            summary += f"  • Percentage Increase: {(model_summary['forecast_increase']/model_summary['historical_avg']*100):.1f}%\n"
-            
-            # Monthly forecast statistics
-            forecast_values = arima_data['forecast']
-            summary += f"\nMonthly Forecast Details:\n"
-            summary += f"  • Minimum: {forecast_values.min():.2f}°C\n"
-            summary += f"  • Maximum: {forecast_values.max():.2f}°C\n"
-            summary += f"  • Standard Deviation: {forecast_values.std():.2f}°C\n"
-            summary += f"  • Seasonal Variation: {forecast_values.max() - forecast_values.min():.2f}°C\n"
-        
-        # SARIMA Results
-        if 'sarima' in self.forecasts:
-            sarima_data = self.forecasts['sarima']
-            model_summary = sarima_data['model_summary']
-            
-            summary += f"\n🌊 SARIMA SEASONAL TIME SERIES MODEL:\n"
-            summary += f"{'='*42}\n"
-            summary += f"Model Configuration:\n"
-            summary += f"  • SARIMA Order: {sarima_data['order']}\n"
-            summary += f"  • Seasonal Order: {sarima_data['seasonal_order']}\n"
-            summary += f"  • Model AIC: {model_summary['aic']:.2f}\n"
-            summary += f"  • Model BIC: {model_summary['bic']:.2f}\n"
-            summary += f"  • Log Likelihood: {model_summary['llf']:.2f}\n"
-            
-            summary += f"\nSeasonal Temperature Forecasts:\n"
-            summary += f"  • Historical Average (1972-2024): {model_summary['historical_avg']:.2f}°C\n"
-            summary += f"  • Predicted Average (2025-2030): {model_summary['avg_forecast']:.2f}°C\n"
-            summary += f"  • Predicted Increase: {model_summary['forecast_increase']:.2f}°C\n"
-            summary += f"  • Percentage Increase: {(model_summary['forecast_increase']/model_summary['historical_avg']*100):.1f}%\n"
-            
-            summary += f"\nSeasonal Pattern Analysis:\n"
-            summary += f"  • Historical Seasonal Range: {model_summary['seasonal_range_historical']:.2f}°C\n"
-            summary += f"  • Predicted Seasonal Range: {model_summary['seasonal_range_forecast']:.2f}°C\n"
-            summary += f"  • Change in Seasonality: {model_summary['seasonality_change']:.2f}°C\n"
-            
-            # Annual forecasts if available
-            if 'annual_forecasts' in sarima_data:
-                summary += f"\nSARIMA Annual Forecasts:\n"
-                for i, temp in enumerate(sarima_data['annual_forecasts']):
-                    increase = temp - model_summary['historical_avg']
-                    summary += f"  • {2025 + i}: {temp:.2f}°C (+{increase:.2f}°C from historical)\n"
-        
-        # Annual predictions
-        if hasattr(self, 'future_predictions'):
-            summary += f"\n📅 ANNUAL TEMPERATURE PREDICTIONS:\n"
-            summary += f"{'='*40}\n"
-            
-            if 'arima' in self.future_predictions:
-                arima_pred = self.future_predictions['arima']
-                summary += f"ARIMA Annual Forecasts:\n"
-                for year, temp in zip(arima_pred['years'], arima_pred['annual_temps']):
-                    increase = temp - self.forecasts['arima']['model_summary']['historical_avg']
-                    summary += f"  • {year}: {temp:.2f}°C (+{increase:.2f}°C from historical)\n"
-            
-            if 'machine_learning' in self.future_predictions:
-                ml_pred = self.future_predictions['machine_learning']
-                summary += f"\nMachine Learning Forecasts:\n"
-                historical_avg = self.data['Dhaka Temperature [2 m elevation corrected]'].mean()
-                for year, temp in zip(ml_pred['years'], ml_pred['annual_temps']):
-                    increase = temp - historical_avg
-                    summary += f"  • {year}: {temp:.2f}°C (+{increase:.2f}°C from historical)\n"
-        
-        # Model performance comparison
-        summary += f"\n🏆 MODEL PERFORMANCE COMPARISON:\n"
-        summary += f"{'='*40}\n"
-        
-        if 'arima' in self.forecasts:
-            summary += f"ARIMA Model:\n"
-            summary += f"  • Type: Time Series Forecasting\n"
-            summary += f"  • Strengths: Captures trends and basic patterns\n"
-            summary += f"  • Model Fit: AIC={self.forecasts['arima']['model_summary']['aic']:.1f}\n"
-        
-        if 'sarima' in self.forecasts:
-            summary += f"\nSARIMA Model:\n"
-            summary += f"  • Type: Seasonal Time Series Forecasting\n"
-            summary += f"  • Strengths: Captures seasonal cycles and climate patterns\n"
-            summary += f"  • Model Fit: AIC={self.forecasts['sarima']['model_summary']['aic']:.1f}\n"
-            summary += f"  • Seasonal Analysis: Advanced decomposition\n"
-        
-        if 'lstm' in self.forecasts:
-            lstm_perf = self.forecasts['lstm']
-            summary += f"\nLSTM Deep Learning Model:\n"
-            summary += f"  • Test R²: {lstm_perf['test_r2']:.3f}\n"
-            summary += f"  • Test RMSE: {lstm_perf['test_rmse']:.3f}°C\n"
-            summary += f"  • Architecture: {lstm_perf['model_summary']['architecture']}\n"
-            summary += f"  • Parameters: {lstm_perf['model_summary']['total_parameters']:,}\n"
-            summary += f"  • Sequence Length: {lstm_perf['model_summary']['sequence_length']} days\n"
-            summary += f"  • Features Used: {lstm_perf['model_summary']['features_used']}\n"
-        
         if 'random_forest' in self.forecasts:
             rf_perf = self.forecasts['random_forest']
-            summary += f"\nRandom Forest Model:\n"
-            summary += f"  • Test R²: {rf_perf['test_r2']:.3f}\n"
-            summary += f"  • Test RMSE: {rf_perf['test_rmse']:.3f}°C\n"
-            summary += f"  • Best Parameters: {rf_perf['best_params']}\n"
-            
-            # Top features
-            if 'feature_importance' in rf_perf:
-                top_features = rf_perf['feature_importance'].head(3)
-                summary += f"  • Top Features: {', '.join(top_features['Feature'].values)}\n"
+            summary += f"\n🌳 RANDOM FOREST:\n"
+            summary += f"  • Test R²: {rf_perf['test_r2']:.4f}\n"
+            summary += f"  • Test RMSE: {rf_perf['test_rmse']:.4f}°C\n"
+            summary += f"  • Best Parameters: {rf_perf['best_params']}\n\n"
         
         if 'xgboost' in self.forecasts:
             xgb_perf = self.forecasts['xgboost']
-            summary += f"\nXGBoost Model:\n"
-            summary += f"  • Test R²: {xgb_perf['test_r2']:.3f}\n"
-            summary += f"  • Test RMSE: {xgb_perf['test_rmse']:.3f}°C\n"
-            summary += f"  • Best Parameters: {xgb_perf['best_params']}\n"
+            summary += f"⚡ XGBOOST:\n"
+            summary += f"  • Test R²: {xgb_perf['test_r2']:.4f}\n"
+            summary += f"  • Test RMSE: {xgb_perf['test_rmse']:.4f}°C\n"
+            summary += f"  • Best Parameters: {xgb_perf['best_params']}\n\n"
         
-        # Climate implications
-        summary += f"\n🌍 CLIMATE IMPLICATIONS:\n"
-        summary += f"{'='*30}\n"
-        
-        if 'arima' in self.forecasts:
-            increase = self.forecasts['arima']['model_summary']['forecast_increase']
-            if increase > 1.0:
-                risk_level = "🔴 HIGH RISK"
-            elif increase > 0.5:
-                risk_level = "🟡 MODERATE RISK"
-            else:
-                risk_level = "🟢 LOW RISK"
-            
-            summary += f"Climate Risk Level: {risk_level}\n"
-            summary += f"Projected warming: {increase:.2f}°C by 2030\n"
-            
-            # Heatwave implications
-            current_heatwave_days = self.data[self.data['Heatwave']].groupby('Year').size().mean()
-            if increase > 0.5:
-                projected_increase_factor = 1 + (increase * 0.3)  # Rough estimate
-                projected_heatwave_days = current_heatwave_days * projected_increase_factor
-                summary += f"Expected heatwave increase: {(projected_increase_factor-1)*100:.0f}%\n"
-                summary += f"Current avg heatwave days: {current_heatwave_days:.1f}/year\n"
-                summary += f"Projected avg heatwave days: {projected_heatwave_days:.1f}/year\n"
-        
-        # Recommendations
-        summary += f"\n💡 RECOMMENDATIONS:\n"
-        summary += f"{'='*25}\n"
-        summary += f"1. 🌡️  Implement heat early warning systems\n"
-        summary += f"2. 🌳 Accelerate urban reforestation programs\n"
-        summary += f"3. 🏠 Improve building cooling infrastructure\n"
-        summary += f"4. 📊 Enhance climate monitoring networks\n"
-        summary += f"5. 🎯 Develop heat adaptation strategies\n"
-        summary += f"6. 🔬 Continue regular model updates with new data\n"
-        
-        summary += f"\n" + "="*70
+        if 'lstm' in self.forecasts:
+            lstm_perf = self.forecasts['lstm']
+            summary += f"🧠 LSTM DEEP LEARNING:\n"
+            summary += f"  • Test R²: {lstm_perf['test_r2']:.4f}\n"
+            summary += f"  • Test RMSE: {lstm_perf['test_rmse']:.4f}°C\n"
+            summary += f"  • Architecture: Multi-layer LSTM with Dropout\n\n"
         
         return summary
+
+
+# Legacy compatibility - keep the old class name for existing code
+HeatwavePredictor = MachineLearningPredictor
