@@ -1,0 +1,21 @@
+{
+    "folders": [
+        {
+            "name": "Heatwave-Dhaka_BD",
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.analysis.extraPaths": ["./src"],
+        "python.analysis.autoSearchPaths": true,
+        "python.analysis.typeCheckingMode": "basic"
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.vscode-pylance",
+            "ms-toolsai.jupyter",
+            "ms-python.black-formatter"
+        ]
+    }
+}

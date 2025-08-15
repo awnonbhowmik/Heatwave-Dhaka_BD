@@ -1,0 +1,10 @@
+{
+    "python.defaultInterpreterPath": "/home/saad/miniconda3/envs/research/bin/python",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.indexing": true,
+    "jupyter.interactiveWindow.textEditor.executeSelection": true,
+    "files.associations": {
+        "*.ipynb": "jupyter-notebook"
+    },
+}
