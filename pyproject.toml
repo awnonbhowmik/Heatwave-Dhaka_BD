@@ -1,0 +1,183 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heatwave-dhaka-analysis"
+version = "2.0.0"
+description = "Comprehensive climate analysis system for heatwave trends in Dhaka, Bangladesh (1972-2024)"
+authors = [
+    {name = "Climate Analysis Team"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.13"
+keywords = ["climate", "heatwave", "time-series", "machine-learning", "bangladesh"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    # Core scientific computing
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "statsmodels>=0.14.0",
+    
+    # Visualization
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    
+    # PyTorch ecosystem (GPU support)
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "torchaudio>=2.0.0",
+    
+    # Data handling
+    "openpyxl>=3.1.0",  # For Excel file reading
+    "xlrd>=2.0.0",      # Additional Excel support
+]
+
+[project.optional-dependencies]
+enhanced = [
+    # Enhanced models
+    "xgboost>=2.0.0",
+    "pmdarima>=2.0.0",
+    
+    # Additional utilities
+    "tqdm>=4.65.0",
+    "joblib>=1.3.0",
+]
+
+dev = [
+    # Linting and formatting
+    "ruff>=0.1.0",
+    
+    # Type checking (handled via VSCode pylance)
+    # Development utilities
+    "ipython>=8.0.0",
+    "jupyter>=1.0.0",
+]
+
+all = [
+    "heatwave-dhaka-analysis[enhanced,dev]"
+]
+
+[project.urls]
+Homepage = "https://github.com/climate-analysis/heatwave-dhaka"
+Repository = "https://github.com/climate-analysis/heatwave-dhaka"
+Issues = "https://github.com/climate-analysis/heatwave-dhaka/issues"
+
+[project.scripts]
+heatwave-analysis = "main_improved:main"
+
+# Ruff configuration for scientific computing
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+indent-width = 4
+
+# Include and exclude patterns
+extend-include = ["*.ipynb"]
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "NotebooksOld",
+    ".serena",
+]
+
+[tool.ruff.lint]
+# Enable rule categories suitable for scientific computing
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort (import sorting)
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+]
+
+# Ignore rules that are problematic for scientific computing
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "B008",   # Do not perform function calls in argument defaults (common in ML)
+    "N803",   # Argument name should be lowercase (common in scientific computing)
+    "N806",   # Variable in function should be lowercase (common in scientific computing)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "F401", "F821", "T201"]  # Jupyter notebooks have different patterns
+"demo_*.py" = ["T201"]  # Allow print statements in demo files
+"**/tests/**" = ["S101"]  # Allow assert statements in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["data_loader", "predictive_models", "visualization", "statistical_analysis"]
+force-single-line = false
+split-on-trailing-comma = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Pyright configuration for scientific computing
+[tool.pyright]
+include = ["*.py"]
+exclude = [
+    "NotebooksOld",
+    ".serena",
+    "**/__pycache__",
+    ".git",
+]
+
+python-version = "3.13"
+python-platform = "Linux"
+
+# Type checking configuration
+type-checking-mode = "basic"
+report-missing-imports = "warning"
+report-missing-type-stubs = false  # Scientific packages often lack complete stubs
+report-unknown-parameter-type = "warning"
+report-unknown-argument-type = "warning"
+report-unknown-lambda-type = "warning"
+report-unknown-variable-type = "warning"
+report-unknown-member-type = false  # Too noisy for dynamic libraries like pandas
+report-unnecessary-isinstance = "warning"
+report-unnecessary-cast = "warning"
+report-unnecessary-comparison = "warning"
+
+# Disable overly strict checks for scientific computing
+report-constant-redefinition = false
+report-function-member-access = false  # NumPy/pandas use dynamic attributes
+report-optional-member-access = "warning"
+report-optional-subscript = "warning"
+report-optional-iterable = "warning"
+report-unbound-variable = "warning"
+
+# Scientific computing specific settings
+strict-list-inference = false  # Allow mixed-type lists common in data science
+strict-dict-inference = false  # Allow mixed-type dicts common in data science
+strict-set-inference = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*.py"]
+exclude = ["NotebooksOld*", "tests*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md", "*.yml", "*.yaml"]

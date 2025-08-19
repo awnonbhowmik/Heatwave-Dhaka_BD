@@ -1,170 +1,213 @@
 """
 Statistical Analysis Module
+Updated to use proper temperature columns and professional output
 """
+
 import numpy as np
-import pandas as pd
 from scipy import stats
-from scipy.stats import pearsonr, spearmanr, kendalltau, linregress, ttest_ind
 from statsmodels.tsa.stattools import adfuller
 
-def comprehensive_statistical_analysis(data, combined_data, tree_loss_by_year, annual_temp_stats):
+from data_dictionary import TEMPERATURE_COLUMNS
+
+
+def comprehensive_statistical_analysis(
+    data, combined_data, tree_loss_by_year, annual_temp_stats
+):
     """Perform comprehensive statistical analysis"""
     results = {}
-    
-    print("="*70)
+
+    print("=" * 70)
     print("COMPREHENSIVE STATISTICAL ANALYSIS")
-    print("="*70)
-    
+    print("=" * 70)
+
     # 1. Temperature distribution analysis
-    temp_col = 'Dhaka Temperature [2 m elevation corrected]'
+    temp_col = TEMPERATURE_COLUMNS["daily_mean"]
+    if temp_col not in data.columns:
+        raise ValueError(f"Temperature column {temp_col} not found in data")
     temp_series = data[temp_col].dropna()
-    
-    results['temperature_distribution'] = {
-        'skewness': stats.skew(temp_series),
-        'kurtosis': stats.kurtosis(temp_series),
-        'normality_test': stats.normaltest(temp_series),
-        'is_normal': stats.normaltest(temp_series)[1] > 0.05
+
+    results["temperature_distribution"] = {
+        "skewness": stats.skew(temp_series),
+        "kurtosis": stats.kurtosis(temp_series),
+        "normality_test": stats.normaltest(temp_series),
+        "is_normal": stats.normaltest(temp_series)[1] > 0.05,
     }
-    
-    print(f"Temperature Distribution Analysis:")
+
+    print("Temperature Distribution Analysis:")
     print(f"Skewness: {results['temperature_distribution']['skewness']:.3f}")
     print(f"Kurtosis: {results['temperature_distribution']['kurtosis']:.3f}")
-    print(f"Normal Distribution: {'Yes' if results['temperature_distribution']['is_normal'] else 'No'}")
-    
+    print(
+        f"Normal Distribution: {'Yes' if results['temperature_distribution']['is_normal'] else 'No'}"
+    )
+
     # 2. Time series stationarity test
-    adf_result = adfuller(temp_series, autolag='AIC')
-    results['stationarity'] = {
-        'adf_statistic': adf_result[0],
-        'p_value': adf_result[1],
-        'critical_values': adf_result[4],
-        'is_stationary': adf_result[1] <= 0.05
+    adf_result = adfuller(temp_series, autolag="AIC")
+    # Properly unpack adfuller results
+    adf_statistic, adf_pvalue, adf_lags, adf_nobs, adf_critical_values = adf_result  # type: ignore
+
+    results["stationarity"] = {
+        "adf_statistic": adf_statistic,
+        "p_value": adf_pvalue,
+        "critical_values": adf_critical_values,
+        "is_stationary": adf_pvalue < 0.05,
+        "lags_used": adf_lags,
+        "nobs_used": adf_nobs,
     }
-    
-    print(f"\nStationarity Test:")
-    print(f"ADF Statistic: {adf_result[0]:.6f}")
-    print(f"p-value: {adf_result[1]:.6f}")
+
+    print("\nStationarity Test (ADF):")
+    print(f"ADF Statistic: {results['stationarity']['adf_statistic']:.3f}")
+    print(f"p-value: {results['stationarity']['p_value']:.3f}")
+    print(f"Lags used: {results['stationarity']['lags_used']}")
+    print(f"Critical values: {results['stationarity']['critical_values']}")
     print(f"Stationary: {'Yes' if results['stationarity']['is_stationary'] else 'No'}")
-    
-    # 3. Temperature trend analysis
-    years = annual_temp_stats['Year'].values
-    temps = annual_temp_stats['Dhaka Temperature [2 m elevation corrected]_mean'].values
-    
-    slope_temp, intercept_temp, r_temp, p_temp, se_temp = linregress(years, temps)
-    results['temperature_trend'] = {
-        'slope': slope_temp,
-        'r_squared': r_temp**2,
-        'p_value': p_temp,
-        'total_increase_52years': slope_temp * 52,
-        'is_significant': p_temp < 0.05
+
+    # 3. Trend analysis
+    time_index = np.arange(len(temp_series))
+
+    # Linear trend
+    slope, intercept, r_value, p_value, std_err = stats.linregress(
+        time_index, temp_series
+    )
+
+    results["trend_analysis"] = {
+        "linear_slope": slope,
+        "linear_intercept": intercept,
+        "r_squared": r_value**2,  # type: ignore
+        "p_value": p_value,
+        "std_err": std_err,
+        "has_significant_trend": p_value < 0.05,  # type: ignore
+        "trend_direction": "warming" if slope > 0 else "cooling",  # type: ignore
+        "annual_change": slope * 365.25,  # Convert daily to annual # type: ignore
     }
-    
-    print(f"\nTemperature Trend (1972-2024):")
-    print(f"Rate of change: {slope_temp:.4f} °C/year")
-    print(f"Total increase: {slope_temp * 52:.2f} °C over 52 years")
-    print(f"R-squared: {r_temp**2:.4f}")
-    print(f"Significant: {'Yes' if p_temp < 0.05 else 'No'}")
-    
-    # 4. Deforestation-temperature correlation
-    valid_years = combined_data[combined_data['umd_tree_cover_loss__ha'] > 0]
-    if len(valid_years) > 2:
-        temp_vals = valid_years['Dhaka Temperature [2 m elevation corrected]_mean']
-        deforest_vals = valid_years['umd_tree_cover_loss__ha']
-        
-        pearson_corr, pearson_p = pearsonr(temp_vals, deforest_vals)
-        spearman_corr, spearman_p = spearmanr(temp_vals, deforest_vals)
-        
-        results['deforestation_correlation'] = {
-            'pearson': {'correlation': pearson_corr, 'p_value': pearson_p},
-            'spearman': {'correlation': spearman_corr, 'p_value': spearman_p}
+
+    print("\nLinear Trend Analysis:")
+    print(f"Slope: {results['trend_analysis']['linear_slope']:.6f} °C/day")
+    print(f"Annual change: {results['trend_analysis']['annual_change']:.3f} °C/year")
+    print(f"R-squared: {results['trend_analysis']['r_squared']:.3f}")
+    print(f"p-value: {results['trend_analysis']['p_value']:.3e}")
+    print(
+        f"Significant trend: {'Yes' if results['trend_analysis']['has_significant_trend'] else 'No'}"
+    )
+
+    # 4. Seasonal analysis
+    if "timestamp" in data.columns:
+        data_with_season = data.copy()
+        data_with_season["month"] = data_with_season["timestamp"].dt.month
+        monthly_stats = data_with_season.groupby("month")[temp_col].agg(
+            ["mean", "std", "count"]
+        )
+
+        results["seasonal_analysis"] = {
+            "monthly_means": monthly_stats["mean"].to_dict(),
+            "monthly_stds": monthly_stats["std"].to_dict(),
+            "hottest_month": monthly_stats["mean"].idxmax(),
+            "coldest_month": monthly_stats["mean"].idxmin(),
+            "seasonal_range": monthly_stats["mean"].max() - monthly_stats["mean"].min(),
         }
-        
-        print(f"\nDeforestation-Temperature Correlation:")
-        print(f"Pearson: {pearson_corr:.4f} (p={pearson_p:.4f})")
-        print(f"Spearman: {spearman_corr:.4f} (p={spearman_p:.4f})")
-    
-    # 5. Heatwave frequency analysis
-    annual_heatwave_counts = data[data['Heatwave']].groupby('Year').size()
-    all_years = data['Year'].unique()
-    annual_heatwave_counts = annual_heatwave_counts.reindex(all_years, fill_value=0).sort_index()
-    
-    hw_years = annual_heatwave_counts.index.values
-    hw_counts = annual_heatwave_counts.values
-    
-    slope_hw, intercept_hw, r_hw, p_hw, se_hw = linregress(hw_years, hw_counts)
-    results['heatwave_trend'] = {
-        'slope': slope_hw,
-        'r_squared': r_hw**2,
-        'p_value': p_hw,
-        'total_increase_52years': slope_hw * 52,
-        'is_significant': p_hw < 0.05
+
+        print("\nSeasonal Analysis:")
+        print(f"Hottest month: {results['seasonal_analysis']['hottest_month']}")
+        print(f"Coldest month: {results['seasonal_analysis']['coldest_month']}")
+        print(
+            f"Seasonal range: {results['seasonal_analysis']['seasonal_range']:.2f} °C"
+        )
+
+    # 5. Extreme values analysis
+    q99 = temp_series.quantile(0.99)
+    q01 = temp_series.quantile(0.01)
+    extreme_hot = temp_series > q99
+    extreme_cold = temp_series < q01
+
+    results["extreme_analysis"] = {
+        "extreme_hot_threshold": q99,
+        "extreme_cold_threshold": q01,
+        "extreme_hot_days": int(extreme_hot.sum()),
+        "extreme_cold_days": int(extreme_cold.sum()),
+        "extreme_hot_percentage": float(extreme_hot.mean() * 100),
+        "extreme_cold_percentage": float(extreme_cold.mean() * 100),
     }
-    
-    print(f"\nHeatwave Frequency Trend:")
-    print(f"Rate of change: {slope_hw:.4f} days/year")
-    print(f"Total increase: {slope_hw * 52:.1f} days over 52 years")
-    print(f"Significant: {'Yes' if p_hw < 0.05 else 'No'}")
-    
-    # 6. Period comparison (pre vs post 2000)
-    pre_2000_temp = annual_temp_stats[annual_temp_stats['Year'] < 2000]['Dhaka Temperature [2 m elevation corrected]_mean']
-    post_2000_temp = annual_temp_stats[annual_temp_stats['Year'] >= 2000]['Dhaka Temperature [2 m elevation corrected]_mean']
-    
-    if len(pre_2000_temp) > 1 and len(post_2000_temp) > 1:
-        t_stat, t_p = ttest_ind(post_2000_temp, pre_2000_temp)
-        results['period_comparison'] = {
-            'pre_2000_mean': pre_2000_temp.mean(),
-            'post_2000_mean': post_2000_temp.mean(),
-            'difference': post_2000_temp.mean() - pre_2000_temp.mean(),
-            't_test_p': t_p,
-            'is_significant': t_p < 0.05
-        }
-        
-        print(f"\nPeriod Comparison (Pre vs Post 2000):")
-        print(f"Pre-2000: {pre_2000_temp.mean():.3f} °C")
-        print(f"Post-2000: {post_2000_temp.mean():.3f} °C")
-        print(f"Difference: {post_2000_temp.mean() - pre_2000_temp.mean():.3f} °C")
-        print(f"Significant: {'Yes' if t_p < 0.05 else 'No'}")
-    
-    # 7. Heatwave period comparison
-    pre_2000_hw = annual_heatwave_counts[annual_heatwave_counts.index < 2000].mean()
-    post_2000_hw = annual_heatwave_counts[annual_heatwave_counts.index >= 2000].mean()
-    
-    results['heatwave_period_comparison'] = {
-        'pre_2000_mean': pre_2000_hw,
-        'post_2000_mean': post_2000_hw,
-        'increase_days': post_2000_hw - pre_2000_hw,
-        'percent_increase': ((post_2000_hw / pre_2000_hw - 1) * 100) if pre_2000_hw > 0 else 0
-    }
-    
-    print(f"\nHeatwave Period Comparison:")
-    print(f"Pre-2000: {pre_2000_hw:.1f} days/year")
-    print(f"Post-2000: {post_2000_hw:.1f} days/year")
-    if pre_2000_hw > 0:
-        print(f"Increase: {post_2000_hw - pre_2000_hw:.1f} days ({((post_2000_hw/pre_2000_hw-1)*100):.1f}%)")
-    
-    print("="*70)
+
+    print("\nExtreme Values Analysis:")
+    print(
+        f"Extreme hot days (>99th percentile): {results['extreme_analysis']['extreme_hot_days']}"
+    )
+    print(
+        f"Extreme cold days (<1st percentile): {results['extreme_analysis']['extreme_cold_days']}"
+    )
+    print(
+        f"Hot threshold: {results['extreme_analysis']['extreme_hot_threshold']:.1f} °C"
+    )
+    print(
+        f"Cold threshold: {results['extreme_analysis']['extreme_cold_threshold']:.1f} °C"
+    )
+
+    # 6. Correlation analysis (if tree loss data is available)
+    if tree_loss_by_year is not None and not tree_loss_by_year.empty:
+        # Match years for correlation
+        data_with_year = data.copy()
+        data_with_year["year"] = data_with_year["timestamp"].dt.year
+        annual_temps = data_with_year.groupby("year")[temp_col].mean()
+
+        common_years = set(annual_temps.index) & set(tree_loss_by_year.index)
+        if len(common_years) >= 10:  # Need reasonable sample size
+            temp_subset = annual_temps.loc[list(common_years)]
+            tree_subset = tree_loss_by_year.loc[list(common_years)]
+
+            correlation = stats.pearsonr(temp_subset, tree_subset.iloc[:, 0])
+
+            results["correlation_analysis"] = {
+                "temp_tree_correlation": correlation.statistic,  # type: ignore
+                "correlation_p_value": correlation.pvalue,  # type: ignore
+                "is_significant": correlation.pvalue < 0.05,  # type: ignore
+                "years_analyzed": len(common_years),
+            }
+
+            print("\nCorrelation Analysis:")
+            print(
+                f"Temperature-Deforestation correlation: {results['correlation_analysis']['temp_tree_correlation']:.3f}"
+            )
+            print(
+                f"p-value: {results['correlation_analysis']['correlation_p_value']:.3f}"
+            )
+            print(
+                f"Years analyzed: {results['correlation_analysis']['years_analyzed']}"
+            )
+
+    print("\nStatistical analysis completed.")
+    print("=" * 70)
+
     return results
+
 
 def get_key_insights(results):
     """Extract key statistical insights"""
     insights = []
-    
+
     # Temperature trend
-    temp_trend = results['temperature_trend']
-    insights.append(f"Temperature increased by {temp_trend['total_increase_52years']:.2f}°C over 52 years")
+    temp_trend = results["temperature_trend"]
+    insights.append(
+        f"Temperature increased by {temp_trend['total_increase_52years']:.2f}°C over 52 years"
+    )
     insights.append(f"Warming rate: {temp_trend['slope']:.4f}°C per year")
-    
+
     # Heatwave trend
-    hw_trend = results['heatwave_trend']
-    insights.append(f"Heatwave frequency increased by {hw_trend['total_increase_52years']:.1f} days over 52 years")
-    
+    hw_trend = results["heatwave_trend"]
+    insights.append(
+        f"Heatwave frequency increased by {hw_trend['total_increase_52years']:.1f} days over 52 years"
+    )
+
     # Deforestation correlation
-    if 'deforestation_correlation' in results:
-        deforest_corr = results['deforestation_correlation']['spearman']['correlation']
-        insights.append(f"Deforestation-temperature correlation: {deforest_corr:.3f} (Spearman)")
-    
+    if "deforestation_correlation" in results:
+        deforest_corr = results["deforestation_correlation"]["spearman"]["correlation"]
+        insights.append(
+            f"Deforestation-temperature correlation: {deforest_corr:.3f} (Spearman)"
+        )
+
     # Period comparison
-    if 'period_comparison' in results:
-        period_diff = results['period_comparison']['difference']
-        insights.append(f"Post-2000 temperature increase: {period_diff:.2f}°C compared to pre-2000")
-    
+    if "period_comparison" in results:
+        period_diff = results["period_comparison"]["difference"]
+        insights.append(
+            f"Post-2000 temperature increase: {period_diff:.2f}°C compared to pre-2000"
+        )
+
     return insights
