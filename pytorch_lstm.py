@@ -6,6 +6,7 @@ designed for Python 3.13.5 compatibility and GPU acceleration.
 """
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,6 +16,59 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from data_dictionary import TEMPERATURE_COLUMNS
 from uncertainty_quantification import UncertaintyQuantifier
+
+# Enable cudnn heuristics for better performance
+torch.backends.cudnn.benchmark = True
+
+
+def _attach_annual_feature(
+    df: pd.DataFrame, annual: pd.Series | pd.DataFrame | tuple | None, name: str
+) -> pd.DataFrame:
+    """Attach annual deforestation data as a new column safely"""
+    df = df.copy()
+
+    # Handle different input types
+    if annual is None:
+        df[name] = 0.0
+        return df
+
+    # Handle tuple (returned from some data loaders)
+    if isinstance(annual, tuple):
+        if len(annual) == 0:
+            df[name] = 0.0
+            return df
+        annual = annual[0] if len(annual) > 0 else None
+
+    # Handle DataFrame - extract first numerical column
+    if isinstance(annual, pd.DataFrame):
+        if annual.empty:
+            df[name] = 0.0
+            return df
+        # Find first numeric column
+        numeric_cols = annual.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) == 0:
+            df[name] = 0.0
+            return df
+        annual = annual[numeric_cols[0]]
+
+    # Handle Series
+    if isinstance(annual, pd.Series):
+        if len(annual.dropna()) == 0:
+            df[name] = 0.0
+            return df
+        # Dict year -> value
+        ymap = {int(k): float(v) for k, v in annual.dropna().items()}  # type: ignore
+        years = pd.DatetimeIndex(df.index).year.astype(int)  # type: ignore
+        df[name] = [ymap.get(y, 0.0) for y in years]
+
+        # Forward/backfill within the same year gaps; final fallback 0.0
+        df[name] = df[name].fillna(method="ffill").fillna(method="bfill").fillna(0.0)  # type: ignore
+        return df
+
+    # Fallback for unknown types
+    df[name] = 0.0
+    return df
+
 
 # Check PyTorch availability and GPU support
 PYTORCH_AVAILABLE = True
@@ -49,7 +103,7 @@ class ClimateLSTM(nn.Module):
         super().__init__()
 
         if hidden_sizes is None:
-            hidden_sizes = [64, 32, 16]
+            hidden_sizes = [32, 16]  # Reduced from [64, 32, 16] to save memory
 
         self.input_size = input_size
         self.sequence_length = sequence_length
@@ -60,20 +114,15 @@ class ClimateLSTM(nn.Module):
         self.lstm1 = nn.LSTM(
             input_size, hidden_sizes[0], batch_first=True, dropout=dropout_rate
         )
-        self.bn1 = nn.BatchNorm1d(sequence_length)
+        self.ln1 = nn.LayerNorm(hidden_sizes[0])
 
         self.lstm2 = nn.LSTM(
             hidden_sizes[0], hidden_sizes[1], batch_first=True, dropout=dropout_rate
         )
-        self.bn2 = nn.BatchNorm1d(sequence_length)
+        self.ln2 = nn.LayerNorm(hidden_sizes[1])
 
-        self.lstm3 = nn.LSTM(
-            hidden_sizes[1], hidden_sizes[2], batch_first=True, dropout=dropout_rate
-        )
-        self.bn3 = nn.BatchNorm1d(sequence_length)
-
-        # Dense layers
-        self.fc1 = nn.Linear(hidden_sizes[2], 32)
+        # Dense layers (removed third LSTM layer to save memory)
+        self.fc1 = nn.Linear(hidden_sizes[1], 32)
         self.dropout1 = nn.Dropout(0.3)
         self.fc2 = nn.Linear(32, 16)
         self.dropout2 = nn.Dropout(0.2)
@@ -87,18 +136,14 @@ class ClimateLSTM(nn.Module):
 
         # First LSTM layer
         lstm_out1, _ = self.lstm1(x)
-        lstm_out1 = self.bn1(lstm_out1)
+        lstm_out1 = self.ln1(lstm_out1)
 
-        # Second LSTM layer
+        # Second LSTM layer (use only the last output)
         lstm_out2, _ = self.lstm2(lstm_out1)
-        lstm_out2 = self.bn2(lstm_out2)
-
-        # Third LSTM layer (use only the last output)
-        lstm_out3, _ = self.lstm3(lstm_out2)
-        lstm_out3 = self.bn3(lstm_out3)
+        lstm_out2 = self.ln2(lstm_out2)
 
         # Take only the last time step output
-        lstm_final = lstm_out3[:, -1, :]  # (batch_size, hidden_size)
+        lstm_final = lstm_out2[:, -1, :]  # (batch_size, hidden_size)
 
         # Dense layers
         out = self.relu(self.fc1(lstm_final))
@@ -242,12 +287,9 @@ class PyTorchLSTMPredictor:
         )
 
         # Add deforestation data if available
-        if self.tree_loss_by_year is not None:
-            # Merge deforestation data
-            feature_data = feature_data.merge(
-                self.tree_loss_by_year[["year", "tree_loss_ha"]], on="year", how="left"
-            )
-            feature_data["tree_loss_ha"] = feature_data["tree_loss_ha"].fillna(0)
+        feature_data = _attach_annual_feature(
+            feature_data, self.tree_loss_by_year, "tree_loss_ha"
+        )
 
         # Available features (excluding target)
         available_features = [
@@ -256,11 +298,18 @@ class PyTorchLSTMPredictor:
             if col != self.temp_col and not col.startswith("heatwave")
         ]
 
-        # Filter numeric columns only
-        numeric_features = []
-        for col in available_features:
-            if feature_data[col].dtype in ["int64", "float64"]:
-                numeric_features.append(col)
+        # Filter to preferred features only (reduces memory footprint)
+        preferred = ["sin_day", "cos_day", "month", "year", "tree_loss_ha"]
+        feature_cols = [c for c in preferred if c in feature_data.columns]
+        # Fallback to all numeric if preferred not available
+        if not feature_cols:
+            from pandas.api.types import is_numeric_dtype
+
+            feature_cols = [
+                c for c in available_features if is_numeric_dtype(feature_data[c])
+            ]
+
+        numeric_features = feature_cols
 
         self.feature_data = feature_data
         self.available_features = numeric_features
@@ -320,7 +369,7 @@ class PyTorchLSTMPredictor:
 
         # Handle missing values
         X_data = np.nan_to_num(X_data, nan=0.0)
-        y_data = np.nan_to_num(y_data, nan=np.nanmean(y_data))
+        y_data = np.nan_to_num(y_data, nan=np.nanmean(y_data))  # type: ignore
 
         # Scale features and target separately
         self.scalers["features"] = MinMaxScaler(feature_range=(0, 1))
@@ -351,18 +400,20 @@ class PyTorchLSTMPredictor:
         print(f"Training set: {len(X_train)} sequences")
         print(f"Validation set: {len(X_val)} sequences")
 
-        # Convert to PyTorch tensors
-        X_train_tensor = torch.FloatTensor(X_train).to(self.device)
-        y_train_tensor = torch.FloatTensor(y_train).to(self.device)
-        X_val_tensor = torch.FloatTensor(X_val).to(self.device)
-        y_val_tensor = torch.FloatTensor(y_val).to(self.device)
+        # Keep datasets on CPU; stream batches to GPU
+        train_dataset = TensorDataset(
+            torch.from_numpy(X_train).float(), torch.from_numpy(y_train).float()
+        )
+        val_dataset = TensorDataset(
+            torch.from_numpy(X_val).float(), torch.from_numpy(y_val).float()
+        )
 
-        # Create data loaders
-        train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-
-        val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(
+            train_dataset, batch_size=16, shuffle=False, pin_memory=True, num_workers=2
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=16, shuffle=False, pin_memory=True, num_workers=2
+        )
 
         # Build PyTorch LSTM model
         print("Building PyTorch LSTM architecture...")
@@ -371,13 +422,19 @@ class PyTorchLSTMPredictor:
         model = ClimateLSTM(
             input_size=input_size,
             sequence_length=self.sequence_length,
-            hidden_sizes=[64, 32, 16],
+            hidden_sizes=[32, 16],  # Smaller model
             dropout_rate=0.2,
         ).to(self.device)
 
         # Set up training components
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999))
+
+        # Mixed precision training
+        use_amp = self.device.type == "cuda"
+        scaler = torch.amp.GradScaler(  # pyright: ignore[reportPrivateImportUsage]
+            device=self.device.type, enabled=use_amp
+        )
 
         # Set up callbacks
         early_stopping = EarlyStopping(
@@ -401,19 +458,23 @@ class PyTorchLSTMPredictor:
             train_maes = []
 
             for batch_X, batch_y in train_loader:
-                optimizer.zero_grad()
+                batch_X = batch_X.to(self.device, non_blocking=True)
+                batch_y = batch_y.to(self.device, non_blocking=True)
 
-                outputs = model(batch_X)
-                loss = criterion(outputs.squeeze(), batch_y)
-
-                loss.backward()
-                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(device_type=self.device.type, enabled=use_amp):
+                    outputs = model(batch_X)
+                    loss = criterion(outputs.squeeze(), batch_y)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
 
                 train_losses.append(loss.item())
 
                 # Calculate MAE
                 with torch.no_grad():
-                    mae = torch.mean(torch.abs(outputs.squeeze() - batch_y))
+                    with torch.autocast(device_type=self.device.type, enabled=use_amp):
+                        mae = torch.mean(torch.abs(outputs.squeeze() - batch_y))
                     train_maes.append(mae.item())
 
             # Validation phase
@@ -423,9 +484,13 @@ class PyTorchLSTMPredictor:
 
             with torch.no_grad():
                 for batch_X, batch_y in val_loader:
-                    outputs = model(batch_X)
-                    loss = criterion(outputs.squeeze(), batch_y)
-                    mae = torch.mean(torch.abs(outputs.squeeze() - batch_y))
+                    batch_X = batch_X.to(self.device, non_blocking=True)
+                    batch_y = batch_y.to(self.device, non_blocking=True)
+
+                    with torch.autocast(device_type=self.device.type, enabled=use_amp):
+                        outputs = model(batch_X)
+                        loss = criterion(outputs.squeeze(), batch_y)
+                        mae = torch.mean(torch.abs(outputs.squeeze() - batch_y))
 
                     val_losses.append(loss.item())
                     val_maes.append(mae.item())
@@ -457,9 +522,23 @@ class PyTorchLSTMPredictor:
 
         # Generate predictions for evaluation
         model.eval()
+        train_preds = []
+        val_preds = []
         with torch.no_grad():
-            train_pred = model(X_train_tensor).cpu().numpy()
-            val_pred = model(X_val_tensor).cpu().numpy()
+            for batch_X, _ in train_loader:
+                batch_X = batch_X.to(self.device, non_blocking=True)
+                with torch.autocast(device_type=self.device.type, enabled=use_amp):
+                    pred = model(batch_X)
+                train_preds.append(pred.cpu().numpy())
+
+            for batch_X, _ in val_loader:
+                batch_X = batch_X.to(self.device, non_blocking=True)
+                with torch.autocast(device_type=self.device.type, enabled=use_amp):
+                    pred = model(batch_X)
+                val_preds.append(pred.cpu().numpy())
+
+        train_pred = np.vstack(train_preds)
+        val_pred = np.vstack(val_preds)
 
         # Inverse transform predictions
         train_pred_orig = self.scalers["target"].inverse_transform(train_pred).flatten()
@@ -493,48 +572,70 @@ class PyTorchLSTMPredictor:
         # Generate future predictions
         print("Generating future climate predictions...")
 
-        # Use last sequence for forecasting
-        last_sequence = (
+        # ==== Build future feature matrix deterministically ====
+        last_date = pd.DatetimeIndex(self.feature_data.index).max()
+        future_days = 365 * 6  # 6 years
+        future_idx = pd.date_range(
+            last_date + pd.Timedelta(days=1), periods=future_days, freq="D"
+        )
+
+        future_df = pd.DataFrame(index=future_idx)
+        future_df["year"] = future_df.index.year  # type: ignore
+        future_df["month"] = future_df.index.month  # type: ignore
+        future_df["day_of_year"] = future_df.index.dayofyear  # type: ignore
+        future_df["sin_day"] = np.sin(2 * np.pi * future_df["day_of_year"] / 365.25)
+        future_df["cos_day"] = np.cos(2 * np.pi * future_df["day_of_year"] / 365.25)
+        future_df = _attach_annual_feature(
+            future_df, self.tree_loss_by_year, "tree_loss_ha"
+        )
+
+        # Keep only the exact training feature columns, in order
+        future_df = future_df.reindex(columns=feature_cols)
+        # Scale using the already-fitted scaler (do NOT refit)
+        future_X_scaled = self.scalers["features"].transform(
+            np.nan_to_num(future_df.values.astype(float), nan=0.0)
+        )
+
+        # ==== Warm-start with the last observed sequence of scaled features ====
+        last_seq = (
             torch.FloatTensor(X_scaled[-self.sequence_length :])
             .unsqueeze(0)
             .to(self.device)
         )
 
-        # Generate predictions for next 6 years (2190 days)
-        future_days = 365 * 6  # 6 years
-        future_predictions = []
-
         model.eval()
+        future_predictions = []
         with torch.no_grad():
-            current_sequence = last_sequence.clone()
+            cur = last_seq.clone()
+            for i in range(future_days):
+                # Slide in the next day's features into the tail of the window
+                x_next = (
+                    torch.from_numpy(future_X_scaled[i])
+                    .float()
+                    .to(self.device)
+                    .unsqueeze(0)
+                    .unsqueeze(0)
+                )  # (1,1,F)
+                cur = torch.cat([cur[:, 1:, :], x_next], dim=1)  # (1, seq_len, F)
+                # Predict target for the new window (i.e., the new day)
+                y_next = model(cur).item()
+                future_predictions.append(y_next)
 
-            for _day in range(future_days):
-                # Predict next day
-                next_pred = model(current_sequence)
-                future_predictions.append(next_pred.item())
-
-                # Update sequence for next prediction (simplified approach)
-                next_features = current_sequence[0, -1, :].clone()
-                next_features[0] = next_pred.item()  # Update temperature prediction
-
-                # Shift sequence window
-                current_sequence = torch.roll(current_sequence, -1, dims=1)
-                current_sequence[0, -1, :] = next_features
-
-        # Convert predictions back to original scale
+        # Inverse transform predictions back to °C
         future_predictions = np.array(future_predictions).reshape(-1, 1)
         future_predictions_orig = (
             self.scalers["target"].inverse_transform(future_predictions).flatten()
         )
 
-        # Calculate annual averages
+        # Annual averages for 2025..2030
         annual_forecasts = {}
-        for year in range(6):
-            year_start = year * 365
-            year_end = (year + 1) * 365
-            if year_end <= len(future_predictions_orig):
-                annual_avg = future_predictions_orig[year_start:year_end].mean()
-                annual_forecasts[str(2025 + year)] = float(annual_avg)
+        for year_offset in range(6):
+            s = year_offset * 365
+            e = (year_offset + 1) * 365
+            if e <= len(future_predictions_orig):
+                annual_forecasts[str(2025 + year_offset)] = float(
+                    future_predictions_orig[s:e].mean()
+                )
 
         print("Annual Temperature Forecasts (PyTorch LSTM):")
         historical_avg = self.feature_data[target_col].mean()
@@ -547,11 +648,15 @@ class PyTorchLSTMPredictor:
 
         # Bootstrap confidence intervals for future predictions
         residuals = y_val_orig - val_pred_orig
-        prediction_uncertainty = (
-            uncertainty_quantifier.time_series_prediction_intervals(
-                residuals, future_predictions_orig, len(future_predictions_orig)
-            )
-        )
+        # residuals are daily; convert to annual std for annual averages
+        res_std_daily = float(np.std(residuals, ddof=1))
+        res_std_annual = res_std_daily / np.sqrt(365.25)
+
+        prediction_uncertainty = {
+            "sigma_daily": res_std_daily,
+            "sigma_annual": res_std_annual,
+            "note": "Annualized via sqrt(365.25) for annual-mean forecasts",
+        }
 
         # Store results
         pytorch_results = {

@@ -7,57 +7,135 @@ confidence intervals, prediction intervals, and ensemble approaches.
 
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 from scipy import stats
 from sklearn.metrics import mean_squared_error
 
+# Constants for uncertainty calculations
+DEFAULT_CONFIDENCE_LEVEL = 0.95
+DEFAULT_BOOTSTRAP_SAMPLES = 1000
+DEFAULT_RANDOM_STATE = 42
+MIN_DEGREES_FREEDOM = 1
+FORECAST_VARIANCE_GROWTH_RATE = 0.1  # 10% increase per forecast step
+EXTRAPOLATION_UNCERTAINTY_RATE = 0.5  # 50% increase per training span
+MIN_SAMPLE_SIZE = 10
+PERCENTAGE_MULTIPLIER = 100
+
+
+def _validate_confidence_level(confidence_level: float) -> None:
+    """Validate confidence level is in valid range.
+
+    Args:
+        confidence_level: Confidence level to validate
+
+    Raises:
+        ValueError: If confidence level is not between 0 and 1
+    """
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            f"Confidence level must be between 0 and 1, got {confidence_level}"
+        )
+
+
+def _validate_array_input(
+    data: np.ndarray, name: str = "data", min_size: int = MIN_SAMPLE_SIZE
+) -> None:
+    """Validate numpy array input.
+
+    Args:
+        data: Array to validate
+        name: Name of the array for error messages
+        min_size: Minimum required size
+
+    Raises:
+        ValueError: If array is invalid
+    """
+    if not isinstance(data, np.ndarray):
+        raise ValueError(f"{name} must be a numpy array")
+    if len(data) == 0:
+        raise ValueError(f"{name} cannot be empty")
+    if len(data) < min_size:
+        raise ValueError(
+            f"{name} must have at least {min_size} elements, got {len(data)}"
+        )
+    if np.any(np.isnan(data)):
+        raise ValueError(f"{name} contains NaN values")
+
+
+def _validate_predictions_match(y_true: np.ndarray, y_pred: np.ndarray) -> None:
+    """Validate that true and predicted values have matching dimensions.
+
+    Args:
+        y_true: True values array
+        y_pred: Predicted values array
+
+    Raises:
+        ValueError: If arrays don't match in size
+    """
+    if len(y_true) != len(y_pred):
+        raise ValueError(
+            f"y_true and y_pred must have same length: {len(y_true)} vs {len(y_pred)}"
+        )
+
 
 class UncertaintyQuantifier:
     """
-    Quantify and visualize prediction uncertainty for climate models
+    Quantify and visualize prediction uncertainty for climate models.
+
+    This class provides various methods for uncertainty quantification including
+    bootstrap confidence intervals, prediction intervals, ensemble methods,
+    and extrapolation uncertainty assessment.
     """
 
-    def __init__(self, confidence_level: float = 0.95):
+    def __init__(self, confidence_level: float = DEFAULT_CONFIDENCE_LEVEL) -> None:
         """
-        Initialize uncertainty quantifier
+        Initialize uncertainty quantifier.
 
-        Parameters:
-        -----------
-        confidence_level : float
-            Confidence level for intervals (default 0.95)
+        Args:
+            confidence_level: Confidence level for intervals (default 0.95)
+
+        Raises:
+            ValueError: If confidence level is not between 0 and 1
         """
+        _validate_confidence_level(confidence_level)
+
         self.confidence_level = confidence_level
         self.alpha = 1.0 - confidence_level
-        self.prediction_intervals = {}
-        self.ensemble_results = {}
+        self.prediction_intervals: dict[str, Any] = {}
+        self.ensemble_results: dict[str, Any] = {}
 
     def bootstrap_confidence_interval(
         self,
         data: np.ndarray,
-        statistic_func=None,
-        n_bootstrap: int = 1000,
-        random_state: int = 42,
+        statistic_func: Callable[[np.ndarray], float] | None = None,
+        n_bootstrap: int = DEFAULT_BOOTSTRAP_SAMPLES,
+        random_state: int = DEFAULT_RANDOM_STATE,
     ) -> dict[str, Any]:
         """
-        Calculate bootstrap confidence intervals for a statistic
+        Calculate bootstrap confidence intervals for a statistic.
 
-        Parameters:
-        -----------
-        data : np.ndarray
-            Input data
-        statistic_func : callable
-            Function to calculate statistic (default: np.mean)
-        n_bootstrap : int
-            Number of bootstrap samples
-        random_state : int
-            Random seed for reproducibility
+        Args:
+            data: Input data array
+            statistic_func: Function to calculate statistic (default: np.mean)
+            n_bootstrap: Number of bootstrap samples (default: 1000)
+            random_state: Random seed for reproducibility (default: 42)
 
         Returns:
-        --------
-        Dict[str, Any] : Bootstrap confidence interval results
+            Dictionary containing bootstrap confidence interval results
+
+        Raises:
+            ValueError: If input data is invalid or n_bootstrap is too small
         """
+        _validate_array_input(
+            data, "data", min_size=3
+        )  # Need at least 3 samples for bootstrap
+
+        if n_bootstrap < 100:
+            raise ValueError(f"n_bootstrap should be at least 100, got {n_bootstrap}")
+
         if statistic_func is None:
             statistic_func = np.mean
 
@@ -93,21 +171,23 @@ class UncertaintyQuantifier:
         self, y_true: np.ndarray, y_pred: np.ndarray, X_test: np.ndarray | None = None
     ) -> dict[str, Any]:
         """
-        Calculate prediction intervals for regression models
+        Calculate prediction intervals for regression models.
 
-        Parameters:
-        -----------
-        y_true : np.ndarray
-            True values
-        y_pred : np.ndarray
-            Predicted values
-        X_test : np.ndarray, optional
-            Test features for leverage adjustment
+        Args:
+            y_true: True values array
+            y_pred: Predicted values array
+            X_test: Test features for leverage adjustment (optional)
 
         Returns:
-        --------
-        Dict[str, Any] : Prediction interval results
+            Dictionary containing prediction interval results
+
+        Raises:
+            ValueError: If input arrays are invalid or mismatched
         """
+        _validate_array_input(y_true, "y_true", min_size=3)
+        _validate_array_input(y_pred, "y_pred", min_size=3)
+        _validate_predictions_match(y_true, y_pred)
+
         residuals = y_true - y_pred
 
         # Calculate residual standard error
@@ -116,7 +196,9 @@ class UncertaintyQuantifier:
         residual_std = np.sqrt(mse)
 
         # t-distribution critical value
-        degrees_freedom = max(n - 2, 1)  # n - p (assuming 2 parameters)
+        degrees_freedom = max(
+            n - 2, MIN_DEGREES_FREEDOM
+        )  # n - p (assuming 2 parameters)
         t_critical = stats.t.ppf(1 - self.alpha / 2, degrees_freedom)
 
         # Basic prediction interval (constant width)
@@ -201,27 +283,37 @@ class UncertaintyQuantifier:
         self, residuals: np.ndarray, forecast: np.ndarray, forecast_steps: int
     ) -> dict[str, Any]:
         """
-        Calculate prediction intervals for time series forecasts
+        Calculate prediction intervals for time series forecasts.
 
-        Parameters:
-        -----------
-        residuals : np.ndarray
-            Model residuals from training
-        forecast : np.ndarray
-            Point forecasts
-        forecast_steps : int
-            Number of steps ahead
+        Args:
+            residuals: Model residuals from training
+            forecast: Point forecasts array
+            forecast_steps: Number of steps ahead
 
         Returns:
-        --------
-        Dict[str, Any] : Time series prediction intervals
+            Dictionary containing time series prediction intervals
+
+        Raises:
+            ValueError: If input arrays are invalid or forecast_steps is invalid
         """
+        _validate_array_input(residuals, "residuals", min_size=3)
+        _validate_array_input(forecast, "forecast", min_size=1)
+
+        if forecast_steps <= 0:
+            raise ValueError(f"forecast_steps must be positive, got {forecast_steps}")
+        if len(forecast) != forecast_steps:
+            raise ValueError(
+                f"forecast length ({len(forecast)}) must equal forecast_steps ({forecast_steps})"
+            )
+
         # Residual standard error
         residual_std = np.std(residuals)
 
         # Variance increases with forecast horizon for most time series models
         # Use simple linear increase as approximation
-        forecast_variance = residual_std**2 * (1 + np.arange(forecast_steps) * 0.1)
+        forecast_variance = residual_std**2 * (
+            1 + np.arange(forecast_steps) * FORECAST_VARIANCE_GROWTH_RATE
+        )
         forecast_std = np.sqrt(forecast_variance)
 
         # Normal distribution critical value
@@ -316,24 +408,35 @@ class UncertaintyQuantifier:
         return results
 
     def extrapolation_uncertainty(
-        self, training_range: tuple, prediction_range: tuple, base_uncertainty: float
+        self,
+        training_range: tuple[float, float],
+        prediction_range: tuple[float, float],
+        base_uncertainty: float,
     ) -> dict[str, Any]:
         """
-        Quantify additional uncertainty from extrapolating beyond training data
+        Quantify additional uncertainty from extrapolating beyond training data.
 
-        Parameters:
-        -----------
-        training_range : tuple
-            Range of training data (min, max)
-        prediction_range : tuple
-            Range of prediction data (min, max)
-        base_uncertainty : float
-            Base model uncertainty within training range
+        Args:
+            training_range: Range of training data (min, max)
+            prediction_range: Range of prediction data (min, max)
+            base_uncertainty: Base model uncertainty within training range
 
         Returns:
-        --------
-        Dict[str, Any] : Extrapolation uncertainty results
+            Dictionary containing extrapolation uncertainty results
+
+        Raises:
+            ValueError: If ranges are invalid or base_uncertainty is negative
         """
+        if len(training_range) != 2 or len(prediction_range) != 2:
+            raise ValueError("Both ranges must be tuples of length 2")
+        if training_range[0] >= training_range[1]:
+            raise ValueError("Training range must have min < max")
+        if prediction_range[0] >= prediction_range[1]:
+            raise ValueError("Prediction range must have min < max")
+        if base_uncertainty < 0:
+            raise ValueError(
+                f"base_uncertainty must be non-negative, got {base_uncertainty}"
+            )
         train_min, train_max = training_range
         pred_min, pred_max = prediction_range
 
@@ -356,8 +459,8 @@ class UncertaintyQuantifier:
         # Increase uncertainty based on extrapolation distance
         # Simple linear increase - could be made more sophisticated
         extrapolation_multiplier = (
-            1.0 + relative_extrapolation * 0.5
-        )  # 50% increase per training span
+            1.0 + relative_extrapolation * EXTRAPOLATION_UNCERTAINTY_RATE
+        )
 
         adjusted_uncertainty = base_uncertainty * extrapolation_multiplier
 
@@ -382,18 +485,17 @@ class UncertaintyQuantifier:
 
         return results
 
-    def generate_uncertainty_report(self, all_results: dict[str, dict]) -> str:
+    def generate_uncertainty_report(
+        self, all_results: dict[str, dict[str, Any]]
+    ) -> str:
         """
-        Generate comprehensive uncertainty analysis report
+        Generate comprehensive uncertainty analysis report.
 
-        Parameters:
-        -----------
-        all_results : Dict[str, Dict]
-            Dictionary of results from different uncertainty methods
+        Args:
+            all_results: Dictionary of results from different uncertainty methods
 
         Returns:
-        --------
-        str : Formatted uncertainty report
+            Formatted uncertainty report as string
         """
         report = "\\n" + "=" * 70 + "\\n"
         report += "UNCERTAINTY QUANTIFICATION REPORT\\n"

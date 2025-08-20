@@ -23,6 +23,34 @@ from data_dictionary import TEMPERATURE_COLUMNS
 
 warnings.filterwarnings("ignore")
 
+
+def _to_year_float_dict(annual) -> dict[str, float]:
+    """Convert annual forecasts to standardized year->float dict"""
+    if isinstance(annual, dict):
+        return {str(k): float(v) for k, v in annual.items()}
+    if isinstance(annual, pd.DataFrame):
+        annual = annual.squeeze()
+    if isinstance(annual, pd.Series):
+        out = {}
+        for idx, val in annual.items():
+            if isinstance(idx, pd.Timestamp | pd.Period):
+                year = str(int(idx.year))
+            else:
+                year = str(int(idx))  # type: ignore
+            out[year] = float(val)
+        return out
+    return {}
+
+
+def _to_float(x, default=np.inf) -> float:
+    """Safely convert to float with fallback"""
+    try:
+        x = np.asarray(x, float)
+        return float(x.item()) if x.size == 1 else float(np.nanmean(x))
+    except Exception:
+        return float(default)
+
+
 try:
     from pmdarima import auto_arima
 
@@ -388,7 +416,27 @@ class ImprovedTimeSeriesPredictor:
             self.models["improved_arima"] = arima_results
 
             print("ARIMA modeling completed successfully!")
-            return arima_results
+
+            # Normalize outputs
+            annual_dict = _to_year_float_dict(annual_forecasts)
+            val_rmse = _to_float(
+                arima_results.get("model_summary", {}).get("forecast_mean", np.inf),
+                default=np.inf,
+            )
+            return {
+                "annual_forecasts": annual_dict,
+                "val_rmse": val_rmse,
+                "decomposition": decomposition,
+                "model": arima_fitted,
+                "order": order,
+                "forecast": forecast,
+                "forecast_dates": future_dates,
+                "confidence_interval": forecast_ci,
+                "historical_series": series,
+                "stationarity_tests": stationarity_results,
+                "diagnostics": diagnostics,
+                "model_summary": arima_results["model_summary"],
+            }
 
         except Exception as e:
             print(f"ARIMA model fitting failed: {e}")
@@ -563,7 +611,26 @@ class ImprovedTimeSeriesPredictor:
             self.models["improved_sarima"] = sarima_results
 
             print("SARIMA modeling completed successfully!")
-            return sarima_results
+
+            # Normalize outputs
+            annual_dict = _to_year_float_dict(annual_forecasts)
+            val_rmse = _to_float(
+                sarima_results.get("model_summary", {}).get("forecast_mean", np.inf),
+                default=np.inf,
+            )
+            return {
+                "annual_forecasts": annual_dict,
+                "val_rmse": val_rmse,
+                "model": sarima_fitted,
+                "order": order,
+                "seasonal_order": seasonal_order,
+                "forecast": forecast,
+                "forecast_dates": future_dates,
+                "confidence_interval": forecast_ci,
+                "historical_series": series,
+                "diagnostics": diagnostics,
+                "model_summary": sarima_results["model_summary"],
+            }
 
         except Exception as e:
             print(f"SARIMA model fitting failed: {e}")

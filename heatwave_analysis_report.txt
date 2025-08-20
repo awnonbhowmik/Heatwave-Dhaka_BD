@@ -1,0 +1,78 @@
+================================================================================
+COMPREHENSIVE HEATWAVE ANALYSIS REPORT
+================================================================================
+
+Analysis Date: 2025-08-20 20:54:33
+
+DATA SUMMARY
+------------------------------
+Dataset: Unknown
+Records: Unknown
+Date Range: Unknown
+Primary Temperature Column: temp_max_c
+Temperature Statistics:
+  Mean: 30.14°C
+  Std:  3.35°C
+  Min:  16.33°C
+  Max:  40.20°C
+
+MODEL PERFORMANCE
+------------------------------
+ARIMA Model:
+
+SARIMA Model:
+
+Pytorch Lstm Model:
+  R²: 0.8226
+  RMSE: 1.8333°C
+  MAE: 1.4689°C
+
+TEMPERATURE FORECASTS (2025-2030)
+----------------------------------------
+ARIMA Forecasts:
+  2025: 25.18°C
+  2026: 25.41°C
+  2027: 25.47°C
+  2028: 25.46°C
+  2029: 25.46°C
+  2030: 25.46°C
+
+SARIMA Forecasts:
+  2025: 26.13°C
+  2026: 26.09°C
+  2027: 26.06°C
+  2028: 26.02°C
+  2029: 25.98°C
+  2030: 25.95°C
+
+LSTM Forecasts:
+  2025: 25.85°C
+  2026: 25.86°C
+  2027: 25.86°C
+  2028: 25.86°C
+  2029: 25.86°C
+  2030: 25.87°C
+
+  Ensemble Average:
+    2025: 25.72°C (+0.24°C from historical)
+    2026: 25.79°C (+0.31°C from historical)
+    2027: 25.80°C (+0.32°C from historical)
+    2028: 25.78°C (+0.30°C from historical)
+    2029: 25.77°C (+0.29°C from historical)
+    2030: 25.76°C (+0.28°C from historical)
+
+UNCERTAINTY QUANTIFICATION
+------------------------------
+Models Combined: 3
+Average Model Uncertainty (σ): ±0.122°C
+95% Prediction Interval for 2025:
+  Lower: 25.47°C
+  Upper: 26.18°C
+
+KEY FINDINGS
+------------------------------
+• Projected temperature change (2025-2030): -4.37°C
+
+================================================================================
+Analysis completed successfully.
+================================================================================

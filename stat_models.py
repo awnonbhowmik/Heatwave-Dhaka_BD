@@ -13,12 +13,21 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from scipy.optimize import minimize
 
 warnings.filterwarnings("ignore")
 
 STATSMODELS_AVAILABLE = True
+
+
+def _safe_mape(y_true, y_pred):
+    """Calculate MAPE with division by zero protection"""
+    y_true = np.asarray(y_true, float)
+    y_pred = np.asarray(y_pred, float)
+    mask = np.isfinite(y_true) & np.isfinite(y_pred) & (y_true != 0.0)
+    if not mask.any():
+        return np.nan
+    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100.0)
 
 
 class StatisticalHeatwavePredictor:
@@ -36,26 +45,43 @@ class StatisticalHeatwavePredictor:
             Historical heatwave data with timestamp and Heatwave columns
         """
         self.data = data
+        # Ensure models container exists
         self.models = {}
         self.predictions = {}
         self.goodness_of_fit = {}
+        self.annual_counts = pd.DataFrame()  # Initialize empty
 
-        # Prepare annual heatwave counts
-        self.prepare_annual_counts()
+        # Prepare annual heatwave counts with guards
+        success = self.prepare_annual_counts()
+        if not success:
+            print("INFO: Annual count preparation failed; count models unavailable.")
 
     def prepare_annual_counts(self):
-        """Prepare annual heatwave count data"""
+        """Prepare annual heatwave count data with defensive guards"""
         print("PREPARING ANNUAL HEATWAVE COUNT DATA")
         print("=" * 50)
 
-        # Calculate annual heatwave counts
-        self.annual_counts = (
-            self.data[self.data["Heatwave"]]
-            .groupby(self.data["timestamp"].dt.year)
-            .size()
-            .reset_index()
+        # Annual heatwave day counts
+        annual = (
+            self.data["is_heatwave_day"]
+            .resample("Y")
+            .sum(min_count=1)
+            .rename("heatwave_days")
         )
-        self.annual_counts.columns = ["Year", "HeatwaveDays"]
+        y = annual.dropna().astype(int)
+
+        # Guard for size and signal
+        if (len(y) < 5) or (y.sum() == 0):
+            print("INFO: Insufficient heatwave counts; skipping GLM.")
+            self.models["poisson"] = None
+            self.models["negative_binomial"] = None
+            self.annual_counts = pd.DataFrame()  # Empty DataFrame
+            return False
+
+        # Convert to standard annual_counts format for compatibility
+        self.annual_counts = pd.DataFrame(
+            {"Year": y.index.year, "HeatwaveDays": y.values}
+        )
 
         # Add time trend variable (years since start)
         start_year = self.annual_counts["Year"].min()
@@ -79,137 +105,144 @@ class StatisticalHeatwavePredictor:
             f"Range: {self.annual_counts['HeatwaveDays'].min()}-{self.annual_counts['HeatwaveDays'].max()} days"
         )
 
-        # Check for overdispersion
-        mean_count = self.annual_counts["HeatwaveDays"].mean()
-        var_count = self.annual_counts["HeatwaveDays"].var()
-        dispersion_ratio = var_count / mean_count
+        # Check for overdispersion using defensive logic
+        mu = float(y.mean())
+        vr = float(y.var(ddof=1))
+        over = vr > mu * 1.25
+        dispersion_ratio = vr / mu
 
         print("\nDISPERSION ANALYSIS:")
-        print(f"• Mean: {mean_count:.2f}")
-        print(f"• Variance: {var_count:.2f}")
+        print(f"• Mean: {mu:.2f}")
+        print(f"• Variance: {vr:.2f}")
         print(f"• Dispersion ratio: {dispersion_ratio:.2f}")
+        print(f"• Overdispersed: {'Yes' if over else 'No'}")
 
-        if dispersion_ratio > 1.5:
-            print(
-                "• WARNING: Data shows OVERDISPERSION - Negative Binomial may be preferred"
-            )
-        elif dispersion_ratio < 0.8:
-            print(
-                "• WARNING: Data shows UNDERDISPERSION - Consider zero-inflated models"
-            )
+        if over:
+            print("• Will use Negative Binomial model (overdispersion detected)")
         else:
-            print("• Data shows reasonable dispersion for Poisson model")
+            print("• Will use Poisson model (adequate dispersion)")
+
+        return True
 
     def fit_poisson_regression(self):
-        """Fit Poisson regression model"""
+        """Fit GLM count model with automatic Poisson/NB selection"""
         print("\n" + "=" * 60)
-        print("POISSON REGRESSION MODEL")
+        print("GLM COUNT MODEL (POISSON/NEGATIVE BINOMIAL)")
         print("=" * 60)
 
+        # Check if we have valid annual counts
+        if self.annual_counts.empty or len(self.annual_counts) < 5:
+            print("INFO: Insufficient heatwave counts; skipping GLM.")
+            self.models["poisson"] = None
+            self.models["negative_binomial"] = None
+            return False
+
         if not STATSMODELS_AVAILABLE:
-            print("ERROR: statsmodels required for Poisson regression")
-            return self._fit_manual_poisson()
+            print("ERROR: statsmodels required for GLM count models")
+            return False
 
         try:
-            # Prepare features
-            X = self.annual_counts[["TimeTrend", "Year_Squared"]].copy()
-            X = sm.add_constant(X)  # Add intercept
-            y = self.annual_counts["HeatwaveDays"]
+            import statsmodels.api as sm
 
-            # Fit Poisson model
-            poisson_model = sm.Poisson(y, X)
-            poisson_results = poisson_model.fit(disp=False)
+            # Get annual data
+            y = self.annual_counts["HeatwaveDays"].astype(int)
+            X = pd.DataFrame(
+                {"year": self.annual_counts["Year"]}, index=self.annual_counts.index
+            )
+            X_ = sm.add_constant(X, has_constant="add")
 
-            # Store model
-            self.models["poisson"] = {
-                "model": poisson_model,
-                "results": poisson_results,
-                "X": X,
-                "y": y,
-            }
+            # Compute dispersion statistics
+            mu = y.mean()
+            vr = y.var(ddof=1)
+            over = vr > mu * 1.25  # type: ignore
 
-            # Model summary
-            print("POISSON MODEL SUMMARY:")
-            print(f"• Log-likelihood: {poisson_results.llf:.2f}")
-            print(f"• AIC: {poisson_results.aic:.2f}")
-            print(f"• BIC: {poisson_results.bic:.2f}")
+            if over:
+                # Use Negative Binomial for overdispersed data
+                fam = sm.families.NegativeBinomial()
+                mdl = sm.GLM(y, X_, family=fam).fit()
+                self.models["negative_binomial"] = {
+                    "model": mdl,
+                    "results": mdl,
+                    "X": X_,
+                    "y": y,
+                }
+                self.models["poisson"] = None
+
+                print("Selected: NEGATIVE BINOMIAL (overdispersion detected)")
+                print(f"• Dispersion parameter: {mdl.scale:.4f}")
+
+            else:
+                # Use Poisson for equidispersed data
+                fam = sm.families.Poisson()
+                mdl = sm.GLM(y, X_, family=fam).fit()
+                self.models["poisson"] = {
+                    "model": mdl,
+                    "results": mdl,
+                    "X": X_,
+                    "y": y,
+                }
+                self.models["negative_binomial"] = None
+
+                print("Selected: POISSON (adequate dispersion)")
+
+            # Model summary with safe BIC compute
+            n = int(len(y))
+            k = int(len(mdl.params))
+            bic = k * np.log(max(n, 1)) - 2.0 * float(mdl.llf)
+
+            print(f"• Log-likelihood: {mdl.llf:.2f}")
+            print(f"• AIC: {mdl.aic:.2f}")
+            print(f"• BIC: {bic:.2f}")
+            print(f"• Deviance: {float(getattr(mdl, 'deviance', np.nan)):.2f}")
 
             # Coefficients
             print("\nMODEL COEFFICIENTS:")
-            for i, coef in enumerate(poisson_results.params):
-                print(
-                    f"• {X.columns[i]}: {coef:.4f} (p={poisson_results.pvalues[i]:.4f})"  # type: ignore
+            for i, coef in enumerate(mdl.params):
+                p_val = mdl.pvalues[i]
+                # Handle both DataFrame and ndarray for column names
+                col_name = (
+                    list(X_.columns)[i]  # type: ignore
+                    if hasattr(X_, "columns")
+                    else f"X_{i}"
                 )
+                print(f"• {col_name}: {coef:.4f} (p={p_val:.4f})")
 
             # Predictions for training data
-            y_pred = poisson_results.predict(X)
+            y_pred = mdl.predict(X_)
 
-            # Goodness of fit
-            self._calculate_goodness_of_fit("poisson", y, y_pred)
+            # Calculate goodness of fit
+            model_type = "negative_binomial" if over else "poisson"
+            self._calculate_goodness_of_fit(model_type, y, y_pred)
 
-            # Generate future predictions
-            self._predict_future_poisson(poisson_results)
+            # Generate future predictions using the selected model
+            if over:
+                self._predict_future_negbinom(mdl)
+            else:
+                self._predict_future_poisson(mdl)
 
-            print("Poisson regression completed successfully!")
+            print("GLM count modeling completed successfully!")
+            return True
 
         except Exception as e:
-            print(f"ERROR: Poisson regression failed: {e}")
-            return self._fit_manual_poisson()
+            print(f"ERROR: GLM count modeling failed: {e}")
+            self.models["poisson"] = None
+            self.models["negative_binomial"] = None
+            return False
 
     def fit_negative_binomial_regression(self):
-        """Fit Negative Binomial regression model"""
-        print("\n" + "=" * 60)
-        print("NEGATIVE BINOMIAL REGRESSION MODEL")
-        print("=" * 60)
+        """Redirect to unified GLM method (Poisson/NB selection is automatic)"""
+        print(
+            "Note: Negative Binomial selection is now automatic in fit_poisson_regression()"
+        )
+        return self.fit_poisson_regression()
 
-        if not STATSMODELS_AVAILABLE:
-            print("ERROR: statsmodels required for Negative Binomial regression")
-            return self._fit_manual_negbinom()
-
-        try:
-            # Prepare features
-            X = self.annual_counts[["TimeTrend", "Year_Squared"]].copy()
-            X = sm.add_constant(X)  # Add intercept
-            y = self.annual_counts["HeatwaveDays"]
-
-            # Fit Negative Binomial model
-            nb_model = sm.NegativeBinomial(y, X)
-            nb_results = nb_model.fit(disp=False)
-
-            # Store model
-            self.models["negative_binomial"] = {
-                "model": nb_model,
-                "results": nb_results,
-                "X": X,
-                "y": y,
-            }
-
-            # Model summary
-            print("NEGATIVE BINOMIAL MODEL SUMMARY:")
-            print(f"• Log-likelihood: {nb_results.llf:.2f}")
-            print(f"• AIC: {nb_results.aic:.2f}")
-            print(f"• BIC: {nb_results.bic:.2f}")
-            print(f"• Alpha (dispersion): {nb_results.params[-1]:.4f}")
-
-            # Coefficients
-            print("\nMODEL COEFFICIENTS:")
-            for i, coef in enumerate(nb_results.params[:-1]):  # Exclude alpha
-                print(f"• {X.columns[i]}: {coef:.4f} (p={nb_results.pvalues[i]:.4f})")  # type: ignore
-
-            # Predictions for training data
-            y_pred = nb_results.predict(X)
-
-            # Goodness of fit
-            self._calculate_goodness_of_fit("negative_binomial", y, y_pred)
-
-            # Generate future predictions
-            self._predict_future_negbinom(nb_results)
-
-            print("Negative Binomial regression completed successfully!")
-
-        except Exception as e:
-            print(f"ERROR: Negative Binomial regression failed: {e}")
-            return self._fit_manual_negbinom()
+    def get_active_glm(self):
+        """Return ('poisson'|'negative_binomial', model) or (None, None)."""
+        if self.models.get("negative_binomial"):
+            return "negative_binomial", self.models["negative_binomial"]["results"]
+        if self.models.get("poisson"):
+            return "poisson", self.models["poisson"]["results"]
+        return None, None
 
     def _fit_manual_poisson(self):
         """Manual Poisson regression using scipy optimization"""
@@ -282,16 +315,18 @@ class StatisticalHeatwavePredictor:
 
         if "poisson" in self.predictions:
             # Apply overdispersion correction
-            overdispersion_factor = (
-                self.annual_counts["HeatwaveDays"].var()
-                / self.annual_counts["HeatwaveDays"].mean()
+            heatwave_days_numeric = pd.to_numeric(
+                self.annual_counts["HeatwaveDays"], errors="coerce"
             )
+            overdispersion_factor = (
+                heatwave_days_numeric.var() / heatwave_days_numeric.mean()
+            )  # type: ignore
 
             # Adjust predictions for overdispersion
             nb_predictions = {}
             for year, pred in self.predictions["poisson"].items():
                 # Add some randomness based on negative binomial properties
-                adjusted_pred = pred * (1 + 0.1 * (overdispersion_factor - 1))
+                adjusted_pred = pred * (1 + 0.1 * (overdispersion_factor - 1))  # type: ignore
                 nb_predictions[year] = max(0, adjusted_pred)
 
             self.predictions["negative_binomial"] = nb_predictions
@@ -299,41 +334,37 @@ class StatisticalHeatwavePredictor:
                 f"Applied overdispersion correction (factor: {overdispersion_factor:.2f})"
             )
 
-    def _predict_future_poisson(self, results):
+    def _predict_future_poisson(self, mdl):
         """Generate Poisson predictions for 2025-2030"""
-        future_years = np.array([2025, 2026, 2027, 2028, 2029, 2030])
-        start_year = self.annual_counts["Year"].min()
-        future_trend = future_years - start_year
+        import statsmodels.api as sm
 
-        # Create future feature matrix
-        future_X = pd.DataFrame(
-            {"const": 1, "TimeTrend": future_trend, "Year_Squared": future_trend**2}
-        )
-
-        # Predictions
-        future_pred = results.predict(future_X)
-        self.predictions["poisson"] = dict(zip(future_years, future_pred, strict=False))
+        years = [2025, 2026, 2027, 2028, 2029, 2030]
+        X_train = self.models["poisson"]["X"]  # saved in fit
+        Xf = pd.DataFrame({"year": years})
+        Xf = sm.add_constant(Xf, has_constant="add")
+        Xf = Xf[X_train.columns]  # align columns exactly
+        yhat = mdl.predict(Xf)
+        self.predictions["poisson"] = {
+            str(y): float(v) for y, v in zip(years, yhat, strict=False)
+        }
 
         print("\nPOISSON PREDICTIONS (2025-2030):")
         for year, pred in self.predictions["poisson"].items():
             print(f"• {year}: {pred:.1f} heatwave days")
 
-    def _predict_future_negbinom(self, results):
+    def _predict_future_negbinom(self, mdl):
         """Generate Negative Binomial predictions for 2025-2030"""
-        future_years = np.array([2025, 2026, 2027, 2028, 2029, 2030])
-        start_year = self.annual_counts["Year"].min()
-        future_trend = future_years - start_year
+        import statsmodels.api as sm
 
-        # Create future feature matrix
-        future_X = pd.DataFrame(
-            {"const": 1, "TimeTrend": future_trend, "Year_Squared": future_trend**2}
-        )
-
-        # Predictions
-        future_pred = results.predict(future_X)
-        self.predictions["negative_binomial"] = dict(
-            zip(future_years, future_pred, strict=False)
-        )
+        years = [2025, 2026, 2027, 2028, 2029, 2030]
+        X_train = self.models["negative_binomial"]["X"]  # saved in fit
+        Xf = pd.DataFrame({"year": years})
+        Xf = sm.add_constant(Xf, has_constant="add")
+        Xf = Xf[X_train.columns]  # align columns exactly
+        yhat = mdl.predict(Xf)
+        self.predictions["negative_binomial"] = {
+            str(y): float(v) for y, v in zip(years, yhat, strict=False)
+        }
 
         print("\nNEGATIVE BINOMIAL PREDICTIONS (2025-2030):")
         for year, pred in self.predictions["negative_binomial"].items():
@@ -348,7 +379,7 @@ class StatisticalHeatwavePredictor:
         rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
 
         # Mean Absolute Percentage Error
-        mape = np.mean(np.abs((y_true - y_pred) / np.maximum(y_true, 1e-10))) * 100
+        mape = _safe_mape(y_true, y_pred)
 
         # R-squared equivalent for count data
         ss_res = np.sum((y_true - y_pred) ** 2)
@@ -381,9 +412,14 @@ class StatisticalHeatwavePredictor:
         print("MODEL COMPARISON")
         print("=" * 60)
 
-        if len(self.predictions) < 2:
-            print("ERROR: Need both models fitted for comparison")
+        if len(self.predictions) < 1:
+            print("ERROR: No models fitted for comparison")
             return
+        elif len(self.predictions) < 2:
+            print("INFO: Only one model fitted (automatic selection)")
+            fitted_model = list(self.predictions.keys())[0]
+            print(f"Selected model: {fitted_model.upper()}")
+            return fitted_model
 
         # Compare goodness of fit
         print("GOODNESS OF FIT COMPARISON:")

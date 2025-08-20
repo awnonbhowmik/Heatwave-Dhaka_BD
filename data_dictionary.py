@@ -7,17 +7,17 @@ for the Dhaka heatwave analysis project.
 
 """
 
-# Temperature Column Definitions
+# Temperature Column Definitions (Canonical Names After Normalization)
 TEMPERATURE_COLUMNS = {
-    "daily_mean": "Dhaka Temperature [2 m elevation corrected]",  # Range: 16.3-40.2°C (Daily average)
-    "daily_min": "Dhaka Temperature [2 m elevation corrected].1",  # Range: 6.5-29.5°C (Daily minimum)
-    "daily_max": "Dhaka Temperature [2 m elevation corrected].2",  # Range: 10.6-34.0°C (Daily maximum)
+    "daily_mean": "temp_mean_c",  # Range: 10.6-34.0°C (Daily average)
+    "daily_min": "temp_min_c",    # Range: 6.5-29.5°C (Daily minimum)
+    "daily_max": "temp_max_c",    # Range: 16.3-40.2°C (Daily maximum)
 }
 
 # Climate Variable Definitions
 CLIMATE_COLUMNS = {
     "temperature_mean": TEMPERATURE_COLUMNS["daily_mean"],
-    "temperature_min": TEMPERATURE_COLUMNS["daily_min"],
+    "temperature_min": TEMPERATURE_COLUMNS["daily_min"],  
     "temperature_max": TEMPERATURE_COLUMNS["daily_max"],
     "precipitation": "Dhaka Precipitation Total",
     "humidity": "Dhaka Relative Humidity [2 m]",
@@ -58,10 +58,17 @@ DATA_PERIODS = {
     "prediction_period": {"start_year": 2025, "end_year": 2030, "total_years": 6},
 }
 
-# Constants and Thresholds
-HEATWAVE_THRESHOLD = 36.0  # °C - Temperature threshold for heatwave definition
+# Constants and Thresholds  
+# Use PERCENTILE-BASED heatwave detection instead of fixed threshold
+# Fixed threshold of 36°C is impossible with daily_mean (max 34.0°C)
+HEATWAVE_PERCENTILE = 95.0  # Use 95th percentile for heatwave definition
+HEATWAVE_MIN_CONSECUTIVE_DAYS = 3  # Minimum consecutive days for heatwave event
+HEATWAVE_THRESHOLD = 36.0  # °C - Legacy fixed threshold (use percentile instead)
 MIN_VALID_TEMPERATURE = -10.0  # °C - Minimum realistic temperature for Dhaka
 MAX_VALID_TEMPERATURE = 50.0  # °C - Maximum realistic temperature for Dhaka
+
+# Primary temperature column for analysis (choose daily_max for heatwaves)
+PRIMARY_TEMP_COLUMN = "daily_max"  # → temp_max_c after normalization (range 16.3-40.2°C)
 
 # Data Quality Thresholds
 DATA_QUALITY = {
