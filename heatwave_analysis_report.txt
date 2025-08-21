@@ -2,7 +2,7 @@
 COMPREHENSIVE HEATWAVE ANALYSIS REPORT
 ================================================================================
 
-Analysis Date: 2025-08-20 20:54:33
+Analysis Date: 2025-08-21 10:44:35
 
 DATA SUMMARY
 ------------------------------
@@ -23,55 +23,55 @@ ARIMA Model:
 SARIMA Model:
 
 Pytorch Lstm Model:
-  R²: 0.8226
-  RMSE: 1.8333°C
-  MAE: 1.4689°C
+  R²: 0.8317
+  RMSE: 1.7856°C
+  MAE: 1.4333°C
 
 TEMPERATURE FORECASTS (2025-2030)
 ----------------------------------------
 ARIMA Forecasts:
-  2025: 25.18°C
-  2026: 25.41°C
-  2027: 25.47°C
-  2028: 25.46°C
-  2029: 25.46°C
-  2030: 25.46°C
+  2025: 24.70°C
+  2026: 25.20°C
+  2027: 25.39°C
+  2028: 25.44°C
+  2029: 25.45°C
+  2030: 25.45°C
 
 SARIMA Forecasts:
-  2025: 26.13°C
-  2026: 26.09°C
-  2027: 26.06°C
-  2028: 26.02°C
+  2025: 25.90°C
+  2026: 25.93°C
+  2027: 25.95°C
+  2028: 25.96°C
   2029: 25.98°C
-  2030: 25.95°C
+  2030: 26.00°C
 
 LSTM Forecasts:
-  2025: 25.85°C
-  2026: 25.86°C
-  2027: 25.86°C
-  2028: 25.86°C
-  2029: 25.86°C
-  2030: 25.87°C
+  2025: 25.63°C
+  2026: 25.64°C
+  2027: 25.64°C
+  2028: 25.65°C
+  2029: 25.65°C
+  2030: 25.67°C
 
   Ensemble Average:
-    2025: 25.72°C (+0.24°C from historical)
-    2026: 25.79°C (+0.31°C from historical)
-    2027: 25.80°C (+0.32°C from historical)
-    2028: 25.78°C (+0.30°C from historical)
-    2029: 25.77°C (+0.29°C from historical)
-    2030: 25.76°C (+0.28°C from historical)
+    2025: 25.41°C (-0.06°C from historical)
+    2026: 25.59°C (+0.11°C from historical)
+    2027: 25.66°C (+0.18°C from historical)
+    2028: 25.68°C (+0.21°C from historical)
+    2029: 25.69°C (+0.22°C from historical)
+    2030: 25.70°C (+0.23°C from historical)
 
 UNCERTAINTY QUANTIFICATION
 ------------------------------
 Models Combined: 3
-Average Model Uncertainty (σ): ±0.122°C
+Average Model Uncertainty (σ): ±0.125°C
 95% Prediction Interval for 2025:
-  Lower: 25.47°C
-  Upper: 26.18°C
+  Lower: 25.12°C
+  Upper: 26.05°C
 
 KEY FINDINGS
 ------------------------------
-• Projected temperature change (2025-2030): -4.37°C
+• Projected temperature change (2025-2030): -4.52°C
 
 ================================================================================
 Analysis completed successfully.
