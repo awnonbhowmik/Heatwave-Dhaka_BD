@@ -207,8 +207,8 @@ def create_summary_dashboard(data, statistical_results, tree_loss_by_year):
     axes[0,2].grid(True, alpha=0.3)
     
     # 4. Temperature distribution by decade
-    data['Decade'] = (data['Year'] // 10) * 10
-    decade_temps = data.groupby('Decade')['Dhaka Temperature [2 m elevation corrected]'].mean()
+    decade_series = (data['Year'] // 10) * 10
+    decade_temps = data.groupby(decade_series)['Dhaka Temperature [2 m elevation corrected]'].mean()
     axes[1,0].bar([f"{int(d)}s" for d in decade_temps.index], decade_temps.values, alpha=0.7)
     axes[1,0].set_title('Average Temperature by Decade', fontweight='bold')
     axes[1,0].set_ylabel('Temperature (°C)')

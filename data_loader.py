@@ -1,15 +1,31 @@
 """
 Data Loading and Preprocessing Module
 """
+import os
 import pandas as pd
 import numpy as np
 import warnings
-warnings.filterwarnings('ignore')
+
+
+def _validate_file_path(file_path, expected_extensions):
+    """Validate file path to prevent path traversal and ensure expected file type."""
+    # Resolve to absolute path and check for path traversal
+    abs_path = os.path.realpath(file_path)
+    if not os.path.isfile(abs_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    _, ext = os.path.splitext(abs_path)
+    if ext.lower() not in expected_extensions:
+        raise ValueError(f"Unexpected file extension '{ext}'. Expected one of: {expected_extensions}")
+    return abs_path
+
 
 def load_heatwave_data(file_path='data/1972_2024_Heatwave_Daily.xlsx'):
     """Load and preprocess heatwave data"""
     print("📂 Loading heatwave data...")
-    data = pd.read_excel(file_path)
+    file_path = _validate_file_path(file_path, {'.xlsx', '.xls'})
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        data = pd.read_excel(file_path)
     
     # Add basic time features
     data['Year'] = data['timestamp'].dt.year
@@ -31,6 +47,7 @@ def load_heatwave_data(file_path='data/1972_2024_Heatwave_Daily.xlsx'):
 def load_deforestation_data(file_path='data/GFW_Dhaka.csv'):
     """Load and preprocess deforestation data"""
     print("📂 Loading deforestation data...")
+    file_path = _validate_file_path(file_path, {'.csv'})
     deforestation_data = pd.read_csv(file_path)
     
     # Analyze tree cover loss by year
