@@ -9,8 +9,11 @@ import warnings
 
 def _validate_file_path(file_path, expected_extensions):
     """Validate file path to prevent path traversal and ensure expected file type."""
-    # Resolve to absolute path and check for path traversal
+    # Resolve to absolute path and ensure it stays within the project directory
     abs_path = os.path.realpath(file_path)
+    base_dir = os.path.realpath(os.path.dirname(__file__))
+    if not abs_path.startswith(base_dir + os.sep) and abs_path != base_dir:
+        raise ValueError(f"File path must be within the project directory: {base_dir}")
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(f"File not found: {file_path}")
     _, ext = os.path.splitext(abs_path)
