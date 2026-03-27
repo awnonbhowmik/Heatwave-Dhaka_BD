@@ -116,11 +116,23 @@ Historical mean: 7.1 days/yr → projected **~280% increase** by 2029.
 ### Setup
 
 ```bash
-conda create -n heatwave python=3.11
+conda create -n heatwave python=3.13
 conda activate heatwave
-pip install numpy pandas matplotlib seaborn scipy statsmodels scikit-learn xgboost torch jupyter ipykernel
+pip install \
+    numpy==2.3.1 \
+    pandas==2.3.1 \
+    matplotlib==3.10.0 \
+    seaborn==0.13.2 \
+    scipy==1.16.0 \
+    statsmodels==0.14.5 \
+    scikit-learn==1.7.1 \
+    xgboost==3.2.0 \
+    torch==2.8.0 \
+    jupyter ipykernel
 python -m ipykernel install --user --name heatwave
 ```
+
+> **Note:** `torch==2.8.0` installs the CPU build by default. For GPU support, follow the [PyTorch install guide](https://pytorch.org/get-started/locally/) to select the appropriate CUDA version. The notebook forces CPU execution (`DEVICE = "cpu"`) so GPU is not required.
 
 ### Run
 
