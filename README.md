@@ -95,15 +95,16 @@ Historical mean: 7.1 days/yr → projected **~280% increase** by 2029.
 |---|------|-------------|
 | 1 | `fig1_overview.png` | 3-panel: Tmax warming trend · annual heatwave days · deforestation overlay |
 | 2 | `fig2_temperature_structure.png` | Daily temperature range, seasonal cycles, Tmin vs Tmax trend decomposition |
-| 3 | `fig3_heatwave_characteristics.png` | Heatwave frequency, duration distribution, monthly climatology (seaborn heatmap) |
-| 4 | `fig4_heat_index.png` | NWS apparent temperature trend · HI burden on heatwave days · extreme HI exceedance |
-| 5 | `fig5_recovery_gap.png` | Nighttime recovery gap (Tmax−Tmin) asymmetric warming — novel UHI indicator |
-| 6 | `fig6_compound_events.png` | Compound hot+dry event frequency, calendar heatmap, seasonal distribution |
-| 7 | `fig7_sarima_forecast.png` | **Primary forecast** — SARIMA(3,1,0)×(1,0,0)₁₂ · AIC=2109.7 · 95% CI shown |
-| 8 | `fig8_arima_forecast.png` | ARIMA(5,1,0)×(1,0,0)₁₂ comparison · AIC=2159.1 · 95% CI shown |
-| 9 | `fig9_lstm_forecast.png` | PyTorch LSTM (2-layer, 64 hidden) · test R²=0.846 · 1-step fit + iterative forecast |
-| 10 | `fig10_correlation_matrix.png` | Pearson correlation matrix of all climate drivers |
-| 11 | `fig11_model_comparison.png` | 4-panel summary: temperature trajectories · HW day projections · AIC bars · ML metrics |
+| 3 | `fig3_heatwave_characteristics.png` | Annual heatwave day counts · monthly distribution · event duration histogram |
+| 4 | `fig4_heatwave_calendar.png` | Year–month heatmap (seaborn) showing April–May concentration across all 52 years |
+| 5 | `fig5_heat_index.png` | NWS apparent temperature trend · HI burden on heatwave days · extreme HI exceedance |
+| 6 | `fig6_recovery_gap.png` | Nighttime recovery gap (Tmax−Tmin) asymmetric warming — novel UHI indicator |
+| 7 | `fig7_compound_events.png` | Compound hot+dry event frequency, calendar heatmap, seasonal distribution |
+| 8 | `fig8_sarima_forecast.png` | **Primary forecast** — SARIMA(3,1,0)×(1,0,0)₁₂ · AIC=2109.7 · 95% CI shown |
+| 9 | `fig9_arima_forecast.png` | ARIMA(5,1,0)×(1,0,0)₁₂ comparison · AIC=2159.1 · 95% CI shown |
+| 10 | `fig10_lstm_forecast.png` | PyTorch LSTM (2-layer, 64 hidden) · test R²=0.846 · 1-step fit + iterative forecast |
+| 11 | `fig11_correlation_matrix.png` | Pearson correlation matrix of all climate drivers |
+| 12 | `fig12_model_comparison.png` | 4-panel summary: temperature trajectories · HW day projections · AIC bars · ML metrics |
 
 ---
 
