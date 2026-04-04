@@ -12,21 +12,20 @@ Heatwave-Dhaka_BD/
 │   ├── 1972_2024_Heatwave_Daily.csv   # 19,316 daily records, 32 variables
 │   └── GFW_Dhaka.csv                  # Global Forest Watch annual deforestation (2001–2023)
 ├── figures/
-│   ├── fig1_overview.png              # Warming trend, heatwave days, deforestation
-│   ├── fig2_temperature_structure.png # Daily range, seasonal cycle, Tmin vs Tmax
-│   ├── fig3_heatwave_characteristics.png  # Annual counts, duration, monthly distribution
-│   ├── fig4_heat_index.png            # NWS apparent temperature burden and trend
-│   ├── fig5_recovery_gap.png          # Nighttime recovery gap (Tmax−Tmin) asymmetric warming
-│   ├── fig6_compound_events.png       # Compound hot+dry events
-│   ├── fig7_sarima_forecast.png       # SARIMA(3,1,0)×(1,0,0)₁₂ forecast 2025–2029
-│   ├── fig8_arima_forecast.png        # ARIMA(5,1,0)×(1,0,0)₁₂ forecast 2025–2029
-│   ├── fig9_lstm_forecast.png         # PyTorch LSTM forecast with 1-step test overlay
-│   ├── fig10_correlation_matrix.png   # Climate drivers correlation matrix
-│   ├── fig11_model_comparison.png     # 4-panel multi-model comparison summary
+│   ├── fig1_study_area.png            # Study area: Dhaka City District, Bangladesh
+│   ├── fig2_overview.png              # Warming trend, heatwave days, deforestation
+│   ├── fig3_temperature_structure.png # Daily range, seasonal cycle, decadal distribution
+│   ├── fig4_heatwave_characteristics.png  # Annual counts, monthly distribution, event durations
+│   ├── fig5_heatwave_calendar.png     # Year–month heatmap across all 52 years
+│   ├── fig6_heat_index.png            # NWS apparent temperature burden and trend
+│   ├── fig7_recovery_gap.png          # Nighttime recovery gap — asymmetric Tmax/Tmin warming
+│   ├── fig8_compound_events.png       # Compound hot+dry events
+│   ├── fig9_correlation_matrix.png    # Pearson correlation matrix of climate drivers
+│   ├── fig10_forecast_combined.png    # Combined 3×2 forecast: SARIMA · ARIMA · LSTM
+│   ├── fig11_model_comparison.png     # Multi-model summary: trajectories · AIC · ML metrics
 │   ├── supp_rf_forecast.png           # Supplementary: Random Forest (notebook only)
 │   └── supp_xgboost_forecast.png      # Supplementary: XGBoost (notebook only)
 ├── analysis.ipynb                     # Full reproducible pipeline (see below)
-├── HeatWave_V1.docx                   # Manuscript
 └── README.md
 ```
 
@@ -91,20 +90,23 @@ Historical mean: 7.1 days/yr → projected **~280% increase** by 2029.
 
 ## Figures
 
-| # | File | Description |
-|---|------|-------------|
-| 1 | `fig1_overview.png` | 3-panel: Tmax warming trend · annual heatwave days · deforestation overlay |
-| 2 | `fig2_temperature_structure.png` | Daily temperature range, seasonal cycles, Tmin vs Tmax trend decomposition |
-| 3 | `fig3_heatwave_characteristics.png` | Annual heatwave day counts · monthly distribution · event duration histogram |
-| 4 | `fig4_heatwave_calendar.png` | Year–month heatmap (seaborn) showing April–May concentration across all 52 years |
-| 5 | `fig5_heat_index.png` | NWS apparent temperature trend · HI burden on heatwave days · extreme HI exceedance |
-| 6 | `fig6_recovery_gap.png` | Nighttime recovery gap (Tmax−Tmin) asymmetric warming — novel UHI indicator |
-| 7 | `fig7_compound_events.png` | Compound hot+dry event frequency, calendar heatmap, seasonal distribution |
-| 8 | `fig8_sarima_forecast.png` | **Primary forecast** — SARIMA(3,1,0)×(1,0,0)₁₂ · AIC=2109.7 · 95% CI shown |
-| 9 | `fig9_arima_forecast.png` | ARIMA(5,1,0)×(1,0,0)₁₂ comparison · AIC=2159.1 · 95% CI shown |
-| 10 | `fig10_lstm_forecast.png` | PyTorch LSTM (2-layer, 64 hidden) · test R²=0.846 · 1-step fit + iterative forecast |
-| 11 | `fig11_correlation_matrix.png` | Pearson correlation matrix of all climate drivers |
-| 12 | `fig12_model_comparison.png` | 4-panel summary: temperature trajectories · HW day projections · AIC bars · ML metrics |
+Figures are numbered in manuscript order. All are saved to `figures/` at 300 DPI.
+
+| # | File | Panels | Description |
+|---|------|--------|-------------|
+| 1 | `fig1_study_area.png` | 1 | Study area: Dhaka City District, Bangladesh — location map with district boundary |
+| 2 | `fig2_overview.png` | A–C | $T_\mathrm{max}$ warming trend · annual heatwave days (1972–2024) · deforestation overlay |
+| 3 | `fig3_temperature_structure.png` | A–D | Daily temperature range (2020–2024) · annual $T_\mathrm{max}$ trend · seasonal climatology · decadal boxplots |
+| 4 | `fig4_heatwave_characteristics.png` | A–C | Annual heatwave day counts · monthly distribution (Apr–May peak) · event duration histogram |
+| 5 | `fig5_heatwave_calendar.png` | 1 | Year–month heatmap across all 52 years — April–May concentration visible throughout |
+| 6 | `fig6_heat_index.png` | A–C | NWS Heat Index vs $T_\mathrm{max}$ trend · humidity heat burden on heatwave days · extreme HI exceedance days |
+| 7 | `fig7_recovery_gap.png` | A–C | Nighttime recovery gap ($T_\mathrm{max}-T_\mathrm{min}$) · $T_\mathrm{min}$ trend · asymmetric warming rates (UHI indicator) |
+| 8 | `fig8_compound_events.png` | A–C | Compound hot+dry event frequency · correlation with heatwave days · seasonal distribution |
+| 9 | `fig9_correlation_matrix.png` | 1 | Pearson $r$ matrix across 10 climate drivers — $T_\mathrm{max}$, $T_\mathrm{min}$, HI, VPD, soil moisture, etc. |
+| 10 | `fig10_forecast_combined.png` | A–F | **Combined 3×2 forecast panel** — one row per model (SARIMA · ARIMA · LSTM); left column: monthly $T_\mathrm{max}$ forecast with 95% CI; right column: projected heatwave days 2025–2029 |
+| 11 | `fig11_model_comparison.png` | A–D | Multi-model summary — (A) annual $T_\mathrm{max}$ trajectories for all 5 models · (B) projected heatwave days · (C) AIC comparison (SARIMA best fit) · (D) ML test metrics (RMSE / $R^2$) |
+| — | `supp_rf_forecast.png` | A–B | Supplementary: Random Forest forecast (notebook only — insufficient annual training data for manuscript) |
+| — | `supp_xgboost_forecast.png` | A–B | Supplementary: XGBoost forecast (notebook only — same limitation as RF) |
 
 ---
 
@@ -149,13 +151,15 @@ All figures are saved to `figures/` at 300 DPI automatically.
 
 ## Models used
 
-| Model | Order | AIC | Best for |
-|-------|-------|-----|----------|
-| SARIMA | (3,1,0)×(1,0,0)₁₂ | 2109.7 | **Primary forecast** — captures monsoon seasonality |
-| ARIMA | (5,1,0)×(1,0,0)₁₂ | 2159.1 | Comparison baseline |
-| LSTM | 2-layer, 64 hidden, SEQ=24 | — | 1-step fit (R²=0.846); iterative forecast reverts to trend mean |
-| Random Forest | 500 trees, depth=4 | — | Supplementary only — insufficient annual training data |
-| XGBoost | 300 estimators, depth=3 | — | Supplementary only — same limitation as RF |
+| Model | Order / Config | AIC | Test $R^2$ | Notes |
+|-------|---------------|-----|-----------|-------|
+| SARIMA | (3,1,0)×(1,0,0)₁₂ | 2109.7 | — | **Primary forecast** — best AIC, captures monsoon seasonality |
+| ARIMA | (5,1,0)×(1,0,0)₁₂ | 2159.1 | — | Comparison baseline; higher AIC |
+| LSTM | 2-layer, 64 hidden, SEQ=24 | — | 0.81 | Strong 1-step fit; iterative multi-step forecast reverts to trend mean |
+| Random Forest | 500 trees, depth=4 | — | −0.15 | Supplementary only — insufficient annual training data |
+| XGBoost | 300 estimators, depth=3 | — | −0.24 | Supplementary only — same limitation as RF |
+
+SARIMA and ARIMA individual forecasts with 95% CI, alongside LSTM, are shown together in **fig10**. All five models are compared in **fig11**.
 
 ---
 
