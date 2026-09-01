@@ -1,0 +1,19 @@
+| variable              |     vif |   maximum_absolute_correlation | most_correlated_variable   |   global_condition_index |   correlation_cluster_order | primary_association_eligible   |
+|:----------------------|--------:|-------------------------------:|:---------------------------|-------------------------:|----------------------------:|:-------------------------------|
+| tmax                  | inf     |                         0.7974 | tmean                      |                7.367e+15 |                          13 | False                          |
+| tmin                  | inf     |                         0.8605 | tmean                      |                7.367e+15 |                          14 | False                          |
+| tmean                 |  42.32  |                         0.9594 | soil_temperature_mean      |                7.367e+15 |                          15 | False                          |
+| day_night_range       | inf     |                        -0.85   | rh_mean                    |                7.367e+15 |                           8 | False                          |
+| precipitation         |   2.165 |                        -0.6314 | shortwave_radiation        |                7.367e+15 |                           1 | True                           |
+| rh_mean               |  56.82  |                        -0.9479 | vpd_mean                   |                7.367e+15 |                          10 | True                           |
+| wind_speed_mean       |   1.676 |                        -0.4879 | pressure_mean              |                7.367e+15 |                           0 | True                           |
+| cloud_cover           |  13.61  |                        -0.9348 | sunshine_duration          |                7.367e+15 |                           6 | False                          |
+| sunshine_duration     |  10.95  |                        -0.9348 | cloud_cover                |                7.367e+15 |                           7 | False                          |
+| shortwave_radiation   |  83.27  |                         0.9861 | uv_radiation               |                7.367e+15 |                           4 | False                          |
+| longwave_radiation    |  22.57  |                         0.8355 | tmin                       |                7.367e+15 |                           2 | False                          |
+| uv_radiation          |  59.54  |                         0.9861 | shortwave_radiation        |                7.367e+15 |                           5 | False                          |
+| pressure_mean         |   3.175 |                        -0.7467 | longwave_radiation         |                7.367e+15 |                           3 | True                           |
+| evapotranspiration    |   6.013 |                         0.6199 | uv_radiation               |                7.367e+15 |                          12 | False                          |
+| soil_temperature_mean |  23.77  |                         0.9594 | tmean                      |                7.367e+15 |                          16 | False                          |
+| soil_moisture_mean    |   7.725 |                         0.8567 | rh_mean                    |                7.367e+15 |                           9 | False                          |
+| vpd_mean              |  66.96  |                        -0.9479 | rh_mean                    |                7.367e+15 |                          11 | False                          |
