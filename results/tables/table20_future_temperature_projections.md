@@ -1,0 +1,22 @@
+|   year |   month | model                             |   mean_tmax |   ci_lower |   ci_upper |   prediction_lower |   prediction_upper |
+|-------:|--------:|:----------------------------------|------------:|-----------:|-----------:|-------------------:|-------------------:|
+|   2025 |       3 | climatology_linear_trend_scenario |       32.32 |      31.95 |      32.68 |              30.43 |              34.2  |
+|   2025 |       4 | climatology_linear_trend_scenario |       33.57 |      33.11 |      34.03 |              31.66 |              35.47 |
+|   2025 |       5 | climatology_linear_trend_scenario |       33.05 |      32.73 |      33.37 |              31.17 |              34.93 |
+|   2025 |       6 | climatology_linear_trend_scenario |       32.29 |      32.05 |      32.54 |              30.43 |              34.16 |
+|   2026 |       3 | climatology_linear_trend_scenario |       32.34 |      31.97 |      32.7  |              30.45 |              34.22 |
+|   2026 |       4 | climatology_linear_trend_scenario |       33.59 |      33.12 |      34.05 |              31.68 |              35.49 |
+|   2026 |       5 | climatology_linear_trend_scenario |       33.07 |      32.74 |      33.4  |              31.19 |              34.95 |
+|   2026 |       6 | climatology_linear_trend_scenario |       32.31 |      32.06 |      32.56 |              30.45 |              34.18 |
+|   2027 |       3 | climatology_linear_trend_scenario |       32.36 |      31.99 |      32.73 |              30.47 |              34.24 |
+|   2027 |       4 | climatology_linear_trend_scenario |       33.61 |      33.14 |      34.07 |              31.7  |              35.51 |
+|   2027 |       5 | climatology_linear_trend_scenario |       33.09 |      32.76 |      33.42 |              31.21 |              34.97 |
+|   2027 |       6 | climatology_linear_trend_scenario |       32.33 |      32.08 |      32.59 |              30.47 |              34.2  |
+|   2028 |       3 | climatology_linear_trend_scenario |       32.38 |      32    |      32.75 |              30.49 |              34.26 |
+|   2028 |       4 | climatology_linear_trend_scenario |       33.63 |      33.16 |      34.1  |              31.72 |              35.53 |
+|   2028 |       5 | climatology_linear_trend_scenario |       33.11 |      32.78 |      33.44 |              31.23 |              34.99 |
+|   2028 |       6 | climatology_linear_trend_scenario |       32.35 |      32.09 |      32.61 |              30.49 |              34.22 |
+|   2029 |       3 | climatology_linear_trend_scenario |       32.4  |      32.02 |      32.77 |              30.51 |              34.28 |
+|   2029 |       4 | climatology_linear_trend_scenario |       33.65 |      33.17 |      34.12 |              31.74 |              35.55 |
+|   2029 |       5 | climatology_linear_trend_scenario |       33.13 |      32.79 |      33.46 |              31.25 |              35.01 |
+|   2029 |       6 | climatology_linear_trend_scenario |       32.37 |      32.1  |      32.64 |              30.5  |              34.24 |

@@ -1,0 +1,7 @@
+| model                    | target            | information                             | interval                    |
+|:-------------------------|:------------------|:----------------------------------------|:----------------------------|
+| seasonal_naive           | monthly mean Tmax | same month previous year                | empirical training residual |
+| monthly_climatology      | monthly mean Tmax | training month-of-year mean             | empirical training residual |
+| climatology_linear_trend | monthly mean Tmax | training-only month effects plus trend  | normal OLS prediction       |
+| sarimax                  | monthly mean Tmax | SARIMA(1,1,1)x(1,0,0,12)                | state-space forecast        |
+| ets                      | monthly mean Tmax | additive trend and 12-month seasonality | empirical training residual |
