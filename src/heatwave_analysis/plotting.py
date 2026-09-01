@@ -78,8 +78,15 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
     sns.set_theme(style="whitegrid",context="paper",font_scale=1.05)
     # 1: study area and verified temporal coverage
     _study_area_figure(df,completeness,out)
-    # 2
-    fig,ax=plt.subplots(1,3,figsize=(12,3.7)); ax[0].bar(completeness.year,completeness.observed_days,color=np.where(completeness.calendar_complete,PALETTE[2],PALETTE[1])); ax[0].set(title="Calendar completeness",ylabel="Observed days")
+    # 2: field-level quality control, distribution, and climatology
+    fig,ax=plt.subplots(1,3,figsize=(12,3.7))
+    affected=[name for name in df.columns if df[name].isna().any()]
+    missing_by_year=df.groupby("year")[affected].agg(lambda x:x.isna().sum()).T
+    aliases={"precipitation":"Precipitation","wind_gust_max":"Wind gust, max","wind_gust_min":"Wind gust, min","wind_gust_mean":"Wind gust, mean","shortwave_radiation":"Shortwave radiation","longwave_radiation":"Longwave radiation","uv_radiation":"UV radiation","direct_shortwave_radiation":"Direct shortwave","evapotranspiration":"Evapotranspiration"}
+    tick_years=[str(year) if year in (1972,1979,2024) or (year%10==0 and year!=1980) else "" for year in missing_by_year.columns]
+    sns.heatmap(missing_by_year,ax=ax[0],cmap=["#F2F2F2",PALETTE[1]],vmin=0,vmax=1,cbar=False,xticklabels=tick_years,yticklabels=[aliases.get(name,name) for name in affected])
+    ax[0].set(title="Field-level missingness\n9 cells, all on 1979-01-01",xlabel="Year",ylabel="Variable")
+    ax[0].tick_params(axis="x",rotation=45,labelsize=7); ax[0].tick_params(axis="y",rotation=0,labelsize=7)
     sns.histplot(df.tmax,bins=35,kde=True,ax=ax[1],color=PALETTE[0]); ax[1].set(title=r"$T_{\max}$ distribution",xlabel=r"$T_{\max}$ ($^\circ$C)")
     clim=df.groupby("month")[["tmax","tmin"]].mean(); ax[2].plot(clim.index,clim.tmax,label=r"$T_{\max}$",color=PALETTE[1]); ax[2].plot(clim.index,clim.tmin,label=r"$T_{\min}$",color=PALETTE[0]); ax[2].legend(); ax[2].set(title="Monthly climatology",xlabel="Month",ylabel=r"Temperature ($^\circ$C)"); _save(fig,out,"figure02_completeness_distributions_climatology")
     # 3
