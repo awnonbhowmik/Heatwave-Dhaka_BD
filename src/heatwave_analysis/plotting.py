@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import shapefile
 from scipy import stats
 
 PALETTE=["#0072B2","#D55E00","#009E73","#CC79A7","#E69F00","#56B4E9"]
@@ -17,17 +18,66 @@ def _save(fig, out: Path, stem: str):
     fig.tight_layout(); fig.savefig(out/f"{stem}.png",dpi=300,bbox_inches="tight"); fig.savefig(out/f"{stem}.pdf",bbox_inches="tight"); plt.close(fig)
 
 
+def _polygon_parts(shape):
+    """Yield individual polygon rings from a pyshp shape."""
+    points=np.asarray(shape.points)
+    stops=list(shape.parts)+[len(points)]
+    for start,end in zip(stops[:-1],stops[1:]):
+        if end-start >= 3:
+            yield points[start:end]
+
+
+def _draw_shape(ax,shape,facecolor="none",edgecolor="black",linewidth=.5,alpha=1.0,zorder=1):
+    for ring in _polygon_parts(shape):
+        ax.fill(ring[:,0],ring[:,1],facecolor=facecolor,edgecolor=edgecolor,
+                linewidth=linewidth,alpha=alpha,zorder=zorder)
+
+
+def _study_area_figure(df,completeness,out):
+    """Bangladesh/Dhaka geography and record coverage without assuming station coordinates."""
+    shape_dir=Path(__file__).resolve().parents[2]/"data"/"shapefiles"
+    adm2=shapefile.Reader(str(shape_dir/"bgd_admbnda_adm2_bbs_20201113"))
+    adm3=shapefile.Reader(str(shape_dir/"bgd_admbnda_adm3_bbs_20201113"))
+    districts=list(zip(adm2.shapes(),adm2.records()))
+    dhaka_shape=next(shape for shape,record in districts if record.as_dict()["ADM2_EN"]=="Dhaka")
+    dhaka_upazilas=[shape for shape,record in zip(adm3.shapes(),adm3.records()) if record.as_dict()["ADM2_EN"]=="Dhaka"]
+
+    fig,ax=plt.subplots(1,3,figsize=(14,4.4),gridspec_kw={"width_ratios":[.9,1,1.45]})
+    for shape,_ in districts:
+        _draw_shape(ax[0],shape,facecolor="#E8E8E8",edgecolor="white",linewidth=.25)
+    _draw_shape(ax[0],dhaka_shape,facecolor=PALETTE[1],edgecolor="#7A2E00",linewidth=1.0,zorder=3)
+    ax[0].set(xlim=(87.8,92.9),ylim=(20.4,26.8),title="Bangladesh and Dhaka District",xlabel="Longitude (°E)",ylabel="Latitude (°N)")
+    ax[0].set_aspect("equal"); ax[0].grid(False); ax[0].annotate("Dhaka",xy=(90.35,23.75),xytext=(89.1,24.8),arrowprops={"arrowstyle":"->","color":"#7A2E00"},color="#7A2E00",fontweight="bold")
+
+    for shape in dhaka_upazilas:
+        _draw_shape(ax[1],shape,facecolor="#F7D7C4",edgecolor="white",linewidth=.7)
+    _draw_shape(ax[1],dhaka_shape,facecolor="none",edgecolor="#7A2E00",linewidth=1.5,zorder=3)
+    xmin,ymin,xmax,ymax=dhaka_shape.bbox; padx=(xmax-xmin)*.08; pady=(ymax-ymin)*.08
+    ax[1].set(xlim=(xmin-padx,xmax+padx),ylim=(ymin-pady,ymax+pady),title="Dhaka District boundary",xlabel="Longitude (°E)",ylabel="Latitude (°N)")
+    ax[1].set_aspect("equal"); ax[1].grid(False)
+    ax[1].scatter(90.4125,23.8103,s=42,color=PALETTE[0],edgecolor="white",linewidth=.7,zorder=5)
+    ax[1].annotate("Dhaka city reference",xy=(90.4125,23.8103),xytext=(90.05,24.05),arrowprops={"arrowstyle":"->","color":PALETTE[0]},color=PALETTE[0],fontsize=8)
+    ax[1].text(.02,.02,"Reference point only; exact station\ncoordinates are not documented.",transform=ax[1].transAxes,fontsize=7,va="bottom",bbox={"boxstyle":"round","facecolor":"white","alpha":.85,"edgecolor":"#BBBBBB"})
+
+    colors=np.where(completeness.calendar_complete,PALETTE[2],PALETTE[1])
+    ax[2].bar(completeness.year,completeness.observed_days,color=colors,width=.82)
+    ax[2].plot(completeness.year,completeness.expected_days,color="#444444",linewidth=.7,label="Expected calendar days")
+    ax[2].set(title="Daily meteorological record coverage",xlabel="Year",ylabel="Observed days",ylim=(0,390),xlim=(1970,2026))
+    ax[2].legend(loc="lower left",fontsize=7)
+    ax[2].annotate("2024 partial year\nthrough 18 November",xy=(2024,323),xytext=(2006,245),arrowprops={"arrowstyle":"->","color":PALETTE[1]},color=PALETTE[1],fontsize=8)
+    ax[2].text(.02,.93,f"{len(df):,} consecutive daily observations\n1972-01-01 to 2024-11-18; no missing dates\nMarch–June 2024 complete (122 days)",transform=ax[2].transAxes,va="top",fontsize=8,bbox={"boxstyle":"round","facecolor":"white","alpha":.9,"edgecolor":"#BBBBBB"})
+    for label,a in zip(["A","B","C"],ax):
+        a.text(.01,.99,label,transform=a.transAxes,ha="left",va="top",fontweight="bold",fontsize=11)
+    _save(fig,out,"figure01_study_area_data_coverage")
+
+
 def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, events, annual_metrics,
                      count_diag, count_estimates, association_estimates, binary_validation,
                      forecast_predictions, forecast_performance, future_counts, out_dir):
     out=Path(out_dir); out.mkdir(parents=True,exist_ok=True)
     sns.set_theme(style="whitegrid",context="paper",font_scale=1.05)
-    # 1: study/data/workflow (avoids adding an undocumented cartographic dependency)
-    fig,ax=plt.subplots(1,2,figsize=(11,4)); ax[0].plot(df.date,df.tmax,color=PALETTE[0],lw=.25); ax[0].set(title=r"Dhaka daily $T_{\max}$",ylabel=r"$T_{\max}$ ($^\circ$C)",xlabel="Date")
-    steps=["Audit","Describe","Define events","Infer","Diagnose","Validate","Quantify uncertainty"]
-    ax[1].axis("off");
-    for i,s in enumerate(steps): ax[1].text(.5,1-i/7.2,s,ha="center",va="center",bbox=dict(boxstyle="round",fc="#E6F2F8",ec=PALETTE[0]))
-    ax[1].set_title("Methods-first workflow"); _save(fig,out,"figure01_study_data_workflow")
+    # 1: study area and verified temporal coverage
+    _study_area_figure(df,completeness,out)
     # 2
     fig,ax=plt.subplots(1,3,figsize=(12,3.7)); ax[0].bar(completeness.year,completeness.observed_days,color=np.where(completeness.calendar_complete,PALETTE[2],PALETTE[1])); ax[0].set(title="Calendar completeness",ylabel="Observed days")
     sns.histplot(df.tmax,bins=35,kde=True,ax=ax[1],color=PALETTE[0]); ax[1].set(title=r"$T_{\max}$ distribution",xlabel=r"$T_{\max}$ ($^\circ$C)")

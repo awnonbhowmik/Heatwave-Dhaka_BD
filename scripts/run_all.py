@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import sklearn
+import shapefile
 import statsmodels
 import statsmodels.api as sm
 import yaml
@@ -137,7 +138,7 @@ def main(config_path: str):
     q.update({"mean_tmax":float(df.tmax.mean()),"maximum_tmax":float(df.tmax.max()),"maximum_tmax_date":str(df.loc[df.tmax.idxmax(),"date"].date()),"operational_days":int(df.operational_36c_1d.sum()),"operational_events":int((events.definition=="operational_36c_1d").sum()),"primary_days":int(df.persistent_36c_3d.sum()),"primary_events":int((events.definition=="persistent_36c_3d").sum()),"longest_primary_event":int(events.loc[events.definition=="persistent_36c_3d","duration"].max())})
     legacy=json.loads(Path("/tmp/legacy_notebook_execution.json").read_text()) if Path("/tmp/legacy_notebook_execution.json").exists() else {"success":False,"message":"not available"}
     write_reports(reports,q,trends,comparison,estimates,assoc,binary,performance,future_counts,sensitivity,start_sha,legacy)
-    metadata={"python_version":sys.version,"operating_system":platform.platform(),"package_versions":{"numpy":np.__version__,"pandas":pd.__version__,"scipy":scipy.__version__,"statsmodels":statsmodels.__version__,"scikit_learn":sklearn.__version__},"random_seed":seed,"starting_commit":start_sha,"run_timestamp_utc":datetime.now(timezone.utc).isoformat(),"config":cfg,"runtime_seconds":round(time.time()-started,3),"data_hashes":source_hashes(ROOT/"data")}
+    metadata={"python_version":sys.version,"operating_system":platform.platform(),"package_versions":{"numpy":np.__version__,"pandas":pd.__version__,"scipy":scipy.__version__,"statsmodels":statsmodels.__version__,"scikit_learn":sklearn.__version__,"pyshp":shapefile.__version__},"random_seed":seed,"starting_commit":start_sha,"run_timestamp_utc":datetime.now(timezone.utc).isoformat(),"config":cfg,"runtime_seconds":round(time.time()-started,3),"data_hashes":source_hashes(ROOT/"data")}
     (dirs["metadata"]/"run_metadata.json").write_text(json.dumps(metadata,indent=2)+"\n")
     print(json.dumps({"status":"complete","runtime_seconds":metadata["runtime_seconds"],"selected_count_model":selected_name,"tables":len(list(dirs['tables'].glob('*.csv'))),"figures":len(list(dirs['figures'].glob('*.png')))},indent=2))
 
