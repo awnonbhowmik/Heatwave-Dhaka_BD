@@ -1,0 +1,3 @@
+| model             | term   |   coefficient |   standard_error |   ci_lower |   ci_upper |   p_value |   incidence_rate_ratio |   irr_ci_lower |   irr_ci_upper |   percentage_change_per_decade |   aic |   bic |   log_likelihood |
+|:------------------|:-------|--------------:|-----------------:|-----------:|-----------:|----------:|-----------------------:|---------------:|---------------:|-------------------------------:|------:|------:|-----------------:|
+| negative_binomial | decade |       0.02839 |           0.1768 |    -0.3182 |     0.3749 |    0.8725 |                  1.029 |         0.7275 |          1.455 |                          2.879 | 245.2 | 251.1 |           -119.6 |

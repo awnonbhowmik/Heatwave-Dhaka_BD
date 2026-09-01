@@ -1,0 +1,2 @@
+outcome,n,mean,variance,variance_to_mean,zero_count,zero_fraction,minimum,maximum,skewness
+heatwave_days,53,5.094339623,58.89477504,11.56082621,31,0.5849056604,0,28,1.507536138

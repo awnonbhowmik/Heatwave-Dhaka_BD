@@ -1,0 +1,3 @@
+model,aic,bic,log_likelihood,residual_deviance,pearson_statistic,dispersion_ratio,selected
+poisson,659.8045379,663.7451217,-327.9022689,563.9194754,593.5140263,11.63752993,False
+negative_binomial,245.1811449,251.0920207,-119.5905725,,,,True
