@@ -11,7 +11,7 @@
   },
   "random_seed": 20260901,
   "starting_commit": "926400ce49ebf2e8e87561beeedb7be93a19dcaf",
-  "run_timestamp_utc": "2026-09-01T22:24:16.437840+00:00",
+  "run_timestamp_utc": "2026-09-01T22:26:29.089411+00:00",
   "config": {
     "seed": 20260901,
     "data": {
@@ -72,7 +72,7 @@
       "reports": "reports"
     }
   },
-  "runtime_seconds": 66.897,
+  "runtime_seconds": 65.7,
   "data_hashes": {
     "/home/awnon/Desktop/Heatwave-Dhaka_BD/data/1972_2024_Heatwave_Daily.csv": "54eb30f29579c4df34857ed57bc695d86eb95e6eb19f643012bfb1bb53a5aacc",
     "/home/awnon/Desktop/Heatwave-Dhaka_BD/data/1972_2024_Heatwave_Daily.xlsx": "357056b6056b37a6be73f69ffd2d4722eeacf0f328e4627a3eff6b4daa6d2292",

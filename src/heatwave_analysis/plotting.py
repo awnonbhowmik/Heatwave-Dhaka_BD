@@ -96,11 +96,11 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
     labels=[r"$T_{\max}$",r"$T_{\min}$",r"Mean $RH$","Precipitation","Wind speed","Cloud cover","Sunshine duration","Shortwave radiation","MSLP","Soil moisture"]
     matrices=[raw_corr.loc[selected,selected],anomaly_corr.loc[selected,selected]]
     titles=[r"Raw March–June Spearman correlations",r"De-seasonalized March–June Spearman correlations"]
-    fig,ax=plt.subplots(1,2,figsize=(18,7.5),layout="constrained",gridspec_kw={"wspace":.28})
+    fig,ax=plt.subplots(1,2,figsize=(16.5,7.5),layout="constrained",gridspec_kw={"wspace":.08})
     for i,(matrix,title) in enumerate(zip(matrices,titles)):
         hm=sns.heatmap(matrix,ax=ax[i],cmap="vlag",vmin=-1,vmax=1,center=0,square=True,
                        annot=True,fmt=".2f",annot_kws={"fontsize":7.5},linewidths=.45,linecolor="white",
-                       xticklabels=labels,yticklabels=labels,cbar=i==1,
+                       xticklabels=labels,yticklabels=labels if i==0 else False,cbar=i==1,
                        cbar_kws={"label":r"Spearman $\rho$","shrink":.78,"ticks":[-1,-.5,0,.5,1]})
         ax[i].set_title(title,pad=12); ax[i].tick_params(axis="x",rotation=45,labelsize=8); ax[i].tick_params(axis="y",rotation=0,labelsize=8)
         ax[i].set_xlabel(""); ax[i].set_ylabel(""); ax[i].text(-.04,1.03,chr(65+i),transform=ax[i].transAxes,fontweight="bold",fontsize=12)
@@ -108,7 +108,6 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
             try: value=float(annotation.get_text())
             except ValueError: continue
             annotation.set_color("white" if abs(value)>=.55 else "black")
-    fig.suptitle("Hot-season meteorological correlation structure, 1972–2024",fontsize=15,fontweight="bold")
     _save(fig,out,"figure03_spearman_correlation_matrices",tight=False)
     # 4
     fig,ax=plt.subplots(1,3,figsize=(12,3.7)); am=annual_metrics[annual_metrics.definition.isin(["operational_36c_1d","persistent_36c_3d","relative_90p_3d"])]
