@@ -2,17 +2,17 @@
 
 ## Research questions and prespecification
 
-RQ1 concerns trends in heatwave frequency, persistence, duration, and intensity; RQ2 concerns adjusted associations between antecedent weather and persistent heatwave status; RQ3 concerns prediction on unseen hot seasons. The primary definition is Tmax >= 36 °C for at least three consecutive days; the primary count outcome is March–June persistent heatwave days.
+RQ1 concerns trends in heatwave frequency, persistence, duration, and intensity; RQ2 concerns adjusted associations between antecedent weather and persistent heatwave status; RQ3 concerns prediction on unseen hot seasons. The primary definition is $T_{\max} \ge 36\,{}^\circ\mathrm{C}$ for at least three consecutive days; the primary count outcome is March–June persistent heatwave days.
 
 ## Descriptive and exploratory results
 
-The full-record mean Tmax was **30.14 °C**, and the maximum was **40.2 °C** on 2023-05-09. The one-day operational definition identified **377 days in 136 runs**; the primary three-day definition identified **270 days in 49 events**, with a longest event of **15 days**. Descriptive distributions precede inference in Tables 1–8. Raw and calendar-day-anomaly Spearman matrices are separate. Correlation is interpreted as exploratory association, never causation. Temperature-derived VPD and all same-day temperatures were excluded from the adjusted binary model.
+The full-record mean $T_{\max}$ was **30.14 $^\circ$C**, and the maximum was **40.2 $^\circ$C** on 2023-05-09. The one-day operational definition identified **377 days in 136 runs**; the primary three-day definition identified **270 days in 49 events**, with a longest event of **15 days**. Descriptive distributions precede inference in Tables 1–8. Raw and calendar-day-anomaly Spearman matrices are separate. Correlation is interpreted as exploratory association, never causation. Temperature-derived VPD and all same-day temperatures were excluded from the adjusted binary model.
 
 ## Trend and count inference
 
-March–June mean Tmax changed by **0.165 °C/decade** (95% CI 0.044, 0.287) using OLS with HAC standard errors; Sen and Mann–Kendall sensitivity estimates appear in Table 9.
+March–June mean $T_{\max}$ changed by **0.165 $^\circ$C/decade** (95% CI 0.044, 0.287) using OLS with HAC standard errors; Sen and Mann–Kendall sensitivity estimates appear in Table 9.
 
-Counts were modeled as $\log E(Y_y)=\beta_0+\beta_1((y-\bar y)/10)$. Poisson and NB2 were compared using dispersion, likelihood fit, AIC, and diagnostics. **negative_binomial** was selected. Its IRR was **1.029 per decade** (95% CI 0.727, 1.455; p=0.8725). Influential years remain in the primary analysis and are removed only one at a time in sensitivity checks.
+Counts were modeled as $\log\operatorname{E}(Y_y)=\beta_0+\beta_1((y-\bar{y})/10)$. Poisson and NB2 were compared using dispersion, likelihood fit, AIC, and diagnostics. **negative-binomial** was selected. Its estimate was $\mathrm{IRR}=1.029$ per decade (95% CI 0.727, 1.455; $p=0.8725$). Influential years remain in the primary analysis and are removed only one at a time in sensitivity checks.
 
 ## Adjusted association model
 

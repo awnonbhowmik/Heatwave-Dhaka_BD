@@ -8,7 +8,7 @@ This branch replaces the article's descriptive/forecast-conversion core with a r
 2. Which strictly antecedent weather conditions are associated with persistent heatwave days after seasonality, trend, collinearity, and temporal clustering are addressed?
 3. How well do temperature and occurrence models perform on unseen hot seasons, and what uncertainty surrounds 2025–2029 conditional scenarios?
 
-The primary event is **Tmax >= 36 °C for at least three consecutive days**. The one-day operational threshold, two-day threshold, percentile definitions, compound day/night definition, alternate reference period, partial-2024 handling, and model classes are sensitivity analyses.
+The primary event is **$T_{\max} \ge 36\,{}^\circ\mathrm{C}$ for at least three consecutive days**. The one-day operational threshold, two-day threshold, percentile definitions, compound day/night definition, alternate reference period, partial-2024 handling, and model classes are sensitivity analyses.
 
 ## Data and boundaries
 
