@@ -14,8 +14,10 @@ from scipy import stats
 PALETTE=["#0072B2","#D55E00","#009E73","#CC79A7","#E69F00","#56B4E9"]
 
 
-def _save(fig, out: Path, stem: str):
-    fig.tight_layout(); fig.savefig(out/f"{stem}.png",dpi=300,bbox_inches="tight"); fig.savefig(out/f"{stem}.pdf",bbox_inches="tight"); plt.close(fig)
+def _save(fig, out: Path, stem: str, tight: bool = True):
+    if tight:
+        fig.tight_layout()
+    fig.savefig(out/f"{stem}.png",dpi=300,bbox_inches="tight"); fig.savefig(out/f"{stem}.pdf",bbox_inches="tight"); plt.close(fig)
 
 
 def _polygon_parts(shape):
@@ -89,10 +91,25 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
     ax[0].tick_params(axis="x",rotation=45,labelsize=7); ax[0].tick_params(axis="y",rotation=0,labelsize=7)
     sns.histplot(df.tmax,bins=35,kde=True,ax=ax[1],color=PALETTE[0]); ax[1].set(title=r"$T_{\max}$ distribution",xlabel=r"$T_{\max}$ ($^\circ$C)")
     clim=df.groupby("month")[["tmax","tmin"]].mean(); ax[2].plot(clim.index,clim.tmax,label=r"$T_{\max}$",color=PALETTE[1]); ax[2].plot(clim.index,clim.tmin,label=r"$T_{\min}$",color=PALETTE[0]); ax[2].legend(); ax[2].set(title="Monthly climatology",xlabel="Month",ylabel=r"Temperature ($^\circ$C)"); _save(fig,out,"figure02_completeness_distributions_climatology")
-    # 3
-    fig,ax=plt.subplots(1,3,figsize=(13,4)); hot=df[df.month.isin([3,4,5,6])]; sns.scatterplot(data=hot.sample(min(2500,len(hot)),random_state=20260901),x="rh_mean",y="tmax",alpha=.25,s=10,ax=ax[0],color=PALETTE[0]); ax[0].set_title(r"Hot-season $T_{\max}$ and humidity"); ax[0].set(xlabel=r"Mean relative humidity, $RH$ (%)",ylabel=r"$T_{\max}$ ($^\circ$C)")
-    sns.heatmap(raw_corr,ax=ax[1],cmap="vlag",vmin=-1,vmax=1,cbar=False,xticklabels=False,yticklabels=False); ax[1].set_title("Raw Spearman correlations")
-    sns.heatmap(anomaly_corr,ax=ax[2],cmap="vlag",vmin=-1,vmax=1,cbar=True,xticklabels=False,yticklabels=False); ax[2].set_title("De-seasonalized correlations"); _save(fig,out,"figure03_relationships_correlations")
+    # 3: readable selected-variable correlation matrices
+    selected=["tmax","tmin","rh_mean","precipitation","wind_speed_mean","cloud_cover","sunshine_duration","shortwave_radiation","pressure_mean","soil_moisture_mean"]
+    labels=[r"$T_{\max}$",r"$T_{\min}$",r"Mean $RH$","Precipitation","Wind speed","Cloud cover","Sunshine duration","Shortwave radiation","MSLP","Soil moisture"]
+    matrices=[raw_corr.loc[selected,selected],anomaly_corr.loc[selected,selected]]
+    titles=[r"Raw March–June Spearman correlations",r"De-seasonalized March–June Spearman correlations"]
+    fig,ax=plt.subplots(1,2,figsize=(18,7.5),layout="constrained",gridspec_kw={"wspace":.28})
+    for i,(matrix,title) in enumerate(zip(matrices,titles)):
+        hm=sns.heatmap(matrix,ax=ax[i],cmap="vlag",vmin=-1,vmax=1,center=0,square=True,
+                       annot=True,fmt=".2f",annot_kws={"fontsize":7.5},linewidths=.45,linecolor="white",
+                       xticklabels=labels,yticklabels=labels,cbar=i==1,
+                       cbar_kws={"label":r"Spearman $\rho$","shrink":.78,"ticks":[-1,-.5,0,.5,1]})
+        ax[i].set_title(title,pad=12); ax[i].tick_params(axis="x",rotation=45,labelsize=8); ax[i].tick_params(axis="y",rotation=0,labelsize=8)
+        ax[i].set_xlabel(""); ax[i].set_ylabel(""); ax[i].text(-.04,1.03,chr(65+i),transform=ax[i].transAxes,fontweight="bold",fontsize=12)
+        for annotation in ax[i].texts:
+            try: value=float(annotation.get_text())
+            except ValueError: continue
+            annotation.set_color("white" if abs(value)>=.55 else "black")
+    fig.suptitle("Hot-season meteorological correlation structure, 1972–2024",fontsize=15,fontweight="bold")
+    _save(fig,out,"figure03_spearman_correlation_matrices",tight=False)
     # 4
     fig,ax=plt.subplots(1,3,figsize=(12,3.7)); am=annual_metrics[annual_metrics.definition.isin(["operational_36c_1d","persistent_36c_3d","relative_90p_3d"])]
     for name,g in am.groupby("definition"): ax[0].plot(g.year,g.heatwave_days,label=name,lw=1); ax[0].legend(fontsize=6); ax[0].set(title="Heatwave-day frequency",ylabel="Days")
