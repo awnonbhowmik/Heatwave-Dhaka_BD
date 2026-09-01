@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Validate output contracts, intervals, report/table consistency, and source immutability."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+
+import pandas as pd
+import yaml
+
+ROOT=Path(__file__).resolve().parents[1]
+EXPECTED_TABLES=[f"table{i:02d}" for i in range(1,23)]
+
+
+def main(config_path):
+    cfg=yaml.safe_load((ROOT/config_path).read_text()); out=ROOT/cfg["outputs"]["root"]
+    csvs=list((out/"tables").glob("table*.csv")); stems=[p.stem[:7] for p in csvs]
+    missing=[name for name in EXPECTED_TABLES if name not in stems]
+    assert not missing,f"Missing tables: {missing}"
+    assert len(list((out/"figures").glob("figure*.png")))==10
+    assert len(list((out/"figures").glob("figure*.pdf")))==10
+    future=pd.read_csv(out/"tables"/"table20_future_temperature_projections.csv")
+    assert (future.ci_lower<=future.mean_tmax).all() and (future.mean_tmax<=future.ci_upper).all()
+    assert (future.prediction_lower<=future.mean_tmax).all() and (future.mean_tmax<=future.prediction_upper).all()
+    counts=pd.read_csv(out/"tables"/"table21_future_heatwave_distributions.csv")
+    assert (counts.p2_5<=counts.p10).all() and (counts.p10<=counts.median_heatwave_days).all() and (counts.median_heatwave_days<=counts.p90).all() and (counts.p90<=counts.p97_5).all()
+    meta=json.loads((out/"metadata"/"run_metadata.json").read_text())
+    for path,digest in meta["data_hashes"].items():
+        assert hashlib.sha256((ROOT/path).read_bytes()).hexdigest()==digest,f"Source changed: {path}"
+    estimate=pd.read_csv(out/"tables"/"table12_selected_count_model.csv").iloc[0]
+    report=(ROOT/"reports"/"statistical_analysis_report.md").read_text()
+    assert f"{estimate.incidence_rate_ratio:.3f}" in report
+    print(f"Validated {len(csvs)} CSV tables, 10 PNG + 10 PDF figures, intervals, source hashes, and report consistency.")
+
+
+if __name__=="__main__":
+    p=argparse.ArgumentParser(); p.add_argument("--config",default="config/analysis.yml"); main(p.parse_args().config)

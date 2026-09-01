@@ -1,0 +1,17 @@
+analysis,variant,estimate,ci_lower,ci_upper,conclusion
+definition,operational_36c_1d,1.018347804,0.798851108,1.298154613,definition-dependent
+definition,persistent_36c_2d,1.020220977,0.7746263048,1.34368125,definition-dependent
+definition,persistent_36c_3d,1.028792762,0.7274882157,1.454888925,definition-dependent
+definition,relative_90p_3d,1.069104182,0.8415019442,1.358266324,definition-dependent
+definition,relative_95p_3d,1.051957375,0.7793645374,1.419893086,definition-dependent
+definition,compound_90p_2d,1.320493788,1.042916274,1.671949981,definition-dependent
+percentile_reference,1991-2020 90p,1.031371933,,,partially robust
+2024_hot_season,through_2023,0.9699076237,,,robust
+2024_hot_season,through_2024,1.028792762,,,robust
+forecast_model,climatology_linear_trend,1.113543037,,,model-dependent
+forecast_model,ets,1.120249719,,,model-dependent
+forecast_model,monthly_climatology,1.174908197,,,model-dependent
+forecast_model,sarimax,1.607219673,,,model-dependent
+forecast_model,seasonal_naive,1.660525611,,,model-dependent
+tree_cover,raw_spearman,-0.1067193676,,,unsupported
+tree_cover,detrended_spearman,0.1067193676,,,unsupported

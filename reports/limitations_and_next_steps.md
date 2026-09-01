@@ -1,0 +1,5 @@
+# Limitations and next steps
+
+This is a single-location meteorological series with no urban–rural comparator, health outcome, population vulnerability measure, or causal intervention. Reanalysis-like internally derived variables may share algorithms and errors; VPD and heat index are temperature-derived. Global Forest Watch coverage is Dhaka Division rather than the climate point and is short relative to the weather record, so raw and detrended associations are ecological context only. Daily Tmax combined with daily mean RH is not a validated simultaneous heat-index exposure.
+
+Partial 2024 is excluded from calendar-year means but allowed for the verified complete March–June sensitivity. Percentile results depend on reference period and quantile window. Count samples contain only one observation per year, limiting complex models. Monthly temperature validation cannot validate daily event runs; direct future counts are therefore trend scenarios. External station validation, homogenization metadata, hourly co-measured humidity, rural comparators, and impact-linked outcomes are priorities.
