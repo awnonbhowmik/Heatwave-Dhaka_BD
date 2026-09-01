@@ -101,7 +101,7 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
         hm=sns.heatmap(matrix,ax=ax[i],cmap="vlag",vmin=-1,vmax=1,center=0,square=True,
                        annot=True,fmt=".2f",annot_kws={"fontsize":7.5},linewidths=.45,linecolor="white",
                        xticklabels=labels,yticklabels=labels if i==0 else False,cbar=i==1,
-                       cbar_kws={"label":r"Spearman $\rho$","shrink":.78,"ticks":[-1,-.5,0,.5,1]})
+                       cbar_kws={"label":r"Spearman $\rho$","shrink":1.0,"ticks":[-1,-.5,0,.5,1]})
         ax[i].set_title(title,pad=12); ax[i].tick_params(axis="x",rotation=45,labelsize=8); ax[i].tick_params(axis="y",rotation=0,labelsize=8)
         ax[i].set_xlabel(""); ax[i].set_ylabel(""); ax[i].text(-.04,1.03,chr(65+i),transform=ax[i].transAxes,fontweight="bold",fontsize=12)
         for annotation in ax[i].texts:
