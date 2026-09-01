@@ -1,0 +1,33 @@
+original_column_name,cleaned_analysis_name,inferred_data_type,unit,temporal_aggregation,expected_physical_min,expected_physical_max,missing_count,missing_percentage,minimum,maximum,retained,target_derived,intended_analytical_role,reason_for_exclusion
+timestamp,date,datetime64[ns],date,daily,,,0,0,1972-01-01 00:00:00,2024-11-18 00:00:00,False,False,time index,not a numeric analytic variable
+Dhaka Temperature [2 m elevation corrected],tmax,float64,degC,daily,-10,55,0,0,16.330425,40.200424,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Temperature [2 m elevation corrected].1,tmin,float64,degC,daily,-10,45,0,0,6.450426,29.500425,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Temperature [2 m elevation corrected].2,tmean,float64,degC,daily,-10,50,0,0,10.637925,34.042923,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Precipitation Total,precipitation,float64,mm/day,daily,0,1000,1,0.005177055291,0.0,261.09998,True,False,candidate predictor,
+Dhaka Relative Humidity [2 m],rh_max,float64,%,daily,0,100,0,0,63.6296,100.137634,True,False,candidate predictor,
+Dhaka Relative Humidity [2 m].1,rh_min,float64,%,daily,0,100,0,0,13.755157,95.04164,True,False,candidate predictor,
+Dhaka Relative Humidity [2 m].2,rh_mean,float64,%,daily,0,100,0,0,42.204617,97.49054,True,False,candidate predictor,
+Dhaka Wind Gust,wind_gust_max,float64,km/h,daily,,,1,0.005177055291,12.24,124.55999,True,False,candidate predictor,
+Dhaka Wind Gust.1,wind_gust_min,float64,km/h,daily,,,1,0.005177055291,1.08,74.88,True,False,candidate predictor,
+Dhaka Wind Gust.2,wind_gust_mean,float64,km/h,daily,,,1,0.005177055291,6.9000015,94.40998,True,False,candidate predictor,
+Dhaka Wind Speed [10 m],wind_speed_max,float64,km/h,daily,,,0,0,3.6179552,52.66592,True,False,candidate predictor,
+Dhaka Wind Speed [10 m].1,wind_speed_mean,float64,km/h,daily,,,0,0,0.0,36.932915,True,False,candidate predictor,
+Dhaka Cloud Cover Total,cloud_cover,float64,%,daily,0,100,0,0,0.0,99.958336,True,False,candidate predictor,
+Dhaka Sunshine Duration,sunshine_duration,float64,min/day,daily,,,0,0,0.0,811.8015,True,False,candidate predictor,
+Dhaka Shortwave Radiation,shortwave_radiation,float64,kJ/m2/day,daily,,,1,0.005177055291,266.0,7991.0,True,False,candidate predictor,
+Dhaka Longwave Radiation,longwave_radiation,float64,kJ/m2/day,daily,,,1,0.005177055291,6588.0,11220.0,True,False,candidate predictor,
+Dhaka UV Radiation,uv_radiation,float64,kJ/m2/day,daily,,,1,0.005177055291,36.629997,900.11,True,False,candidate predictor,
+Dhaka Direct Shortwave Radiation,direct_shortwave_radiation,float64,kJ/m2/day,daily,,,1,0.005177055291,0.0,6590.0,True,False,candidate predictor,
+Dhaka Mean Sea Level Pressure [MSL],pressure_max,float64,hPa,daily,850,1100,0,0,989.8,1023.6,True,False,candidate predictor,
+Dhaka Mean Sea Level Pressure [MSL].1,pressure_min,float64,hPa,daily,850,1100,0,0,983.5,1019.4,True,False,candidate predictor,
+Dhaka Mean Sea Level Pressure [MSL].2,pressure_mean,float64,hPa,daily,850,1100,0,0,987.86237,1021.05414,True,False,candidate predictor,
+Dhaka Evapotranspiration,evapotranspiration,float64,mm/day,daily,,,1,0.005177055291,0.39024,6.73776,True,False,candidate predictor,
+Dhaka Vapor Pressure Deficit [2 m],vpd_max,float64,hPa,daily,,,0,0,1.385109,61.238644,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Vapor Pressure Deficit [2 m].1,vpd_min,float64,hPa,daily,,,0,0,-0.02700615,9.768679,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Vapor Pressure Deficit [2 m].2,vpd_mean,float64,hPa,daily,,,0,0,0.7106946,31.67044,True,True,outcome/sensitivity only,excluded from primary association model to prevent leakage
+Dhaka Soil Temperature [0-7 cm down],soil_temperature_max,float64,degC,daily,,,0,0,18.41,41.91,True,False,candidate predictor,
+Dhaka Soil Temperature [0-7 cm down].1,soil_temperature_min,float64,degC,daily,,,0,0,6.94,32.47,True,False,candidate predictor,
+Dhaka Soil Temperature [0-7 cm down].2,soil_temperature_mean,float64,degC,daily,,,0,0,12.919583,36.623333,True,False,candidate predictor,
+Dhaka Soil Moisture [0-7 cm down],soil_moisture_max,float64,m3/m3,daily,0,1,0,0,0.129,0.449,True,False,candidate predictor,
+Dhaka Soil Moisture [0-7 cm down].1,soil_moisture_min,float64,m3/m3,daily,0,1,0,0,0.126,0.435,True,False,candidate predictor,
+Dhaka Soil Moisture [0-7 cm down].2,soil_moisture_mean,float64,m3/m3,daily,0,1,0,0,0.12858331,0.43791673,True,False,candidate predictor,

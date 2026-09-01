@@ -1,0 +1,20 @@
+seed: 20260901
+data:
+  daily_csv: data/1972_2024_Heatwave_Daily.csv
+  daily_xlsx: data/1972_2024_Heatwave_Daily.xlsx
+  tree_cover_csv: data/GFW_Dhaka.csv
+analysis:
+  hot_season_months: [3, 4, 5, 6]
+  complete_year_end: 2023
+  primary_definition: persistent_36c_3d
+  percentile_reference_primary: [1981, 2010]
+  percentile_reference_sensitivity: [1991, 2020]
+  percentile_window_days: 7
+  quantile_method: linear
+  forecast_origins: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+  future_years: [2025, 2026, 2027, 2028, 2029]
+  simulations: 5000
+  binary_validation_origins: [2014, 2016, 2018, 2020, 2022, 2024]
+outputs:
+  root: results
+  reports: reports

@@ -1,0 +1,5 @@
+# Data quality report
+
+The daily CSV contains **19,316** rows from **1972-01-01** through **2024-11-18**. There are **0** duplicate dates and **0** missing calendar dates. Across all raw fields, **9** values are missing. The file contains **14** leap-day observations. Calendar year 2024 is incomplete; complete-calendar-year analyses therefore end in 2023. Every March–June season, including 2024, contains the expected 122 dates.
+
+Range checks and abrupt-change flags are recorded in `results/metadata/quality_findings.json`; flagged observations were retained. The nine missing cells occur outside Tmax and are handled by pairwise deletion for descriptions and complete-case construction for the prespecified model variables. The raw headers do not encode max/min/mean directly; suffix meanings were checked against value ordering and mapped explicitly in code. Infinite VIFs were retained—not suppressed—where exact mathematical relationships exist (notably temperature summaries); those variables were not jointly entered in the primary association model.
