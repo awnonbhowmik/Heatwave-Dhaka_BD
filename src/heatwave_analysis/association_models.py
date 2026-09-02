@@ -47,10 +47,15 @@ def _design(data: pd.DataFrame, predictors: list[str], means=None, scales=None):
     return sm.add_constant(x, has_constant="add"), means, scales
 
 
-def fit_association_models(data: pd.DataFrame, outcome: str = "persistent_36c_3d"):
-    predictors = list(PRIMARY_ASSOCIATION_PREDICTORS)
+def fit_association_models(
+    data: pd.DataFrame, outcome: str = "persistent_36c_3d",
+    predictors: list[str] | None = None, excluded_years: list[int] | None = None,
+):
+    predictors = list(PRIMARY_ASSOCIATION_PREDICTORS if predictors is None else predictors)
     assert_no_target_leakage(predictors)
     hot = data[data.month.isin([3, 4, 5, 6])].dropna(subset=[outcome] + predictors).copy()
+    if excluded_years:
+        hot = hot[~hot.year.isin(excluded_years)].copy()
     X_base, means_base, scales_base = _design(hot, [])
     X_full, means_full, scales_full = _design(hot, predictors)
     # GEE handles repeated daily observations and serial correlation within year.
@@ -63,6 +68,42 @@ def fit_association_models(data: pd.DataFrame, outcome: str = "persistent_36c_3d
         return result
     base=gee(X_base); full=gee(X_full)
     return hot, base, full, (means_base, scales_base), (means_full, scales_full)
+
+
+def association_sensitivity(data: pd.DataFrame, influential_years: list[int]) -> pd.DataFrame:
+    """Evaluate event onset, lag windows, and influential-season exclusions."""
+    data = data.copy()
+    data["persistent_onset"] = (
+        data.persistent_36c_3d.astype(bool)
+        & ~data.persistent_36c_3d.shift(1, fill_value=False).astype(bool)
+    )
+    variants = [
+        ("primary_persistent_days", "persistent_36c_3d", list(PRIMARY_ASSOCIATION_PREDICTORS), []),
+        ("event_onset", "persistent_onset", list(PRIMARY_ASSOCIATION_PREDICTORS), []),
+        ("one_day_lags", "persistent_36c_3d", [
+            "rh_mean_lag1", "precipitation_lag1", "wind_speed_mean_lag1", "pressure_mean_lag1",
+        ], []),
+        ("seven_day_lags", "persistent_36c_3d", [
+            "rh_mean_lag7_mean", "precipitation_lag7_sum",
+            "wind_speed_mean_lag7_mean", "pressure_mean_lag7_mean",
+        ], []),
+    ]
+    variants.extend([
+        (f"exclude_{year}", "persistent_36c_3d", list(PRIMARY_ASSOCIATION_PREDICTORS), [year])
+        for year in influential_years
+    ])
+    frames = []
+    for variant, outcome, predictors, excluded in variants:
+        hot, _, full, _, _ = fit_association_models(
+            data, outcome=outcome, predictors=predictors, excluded_years=excluded,
+        )
+        estimates = association_estimates(full, full)
+        estimates = estimates[estimates.model.eq("antecedent_full")].copy()
+        estimates.insert(0, "variant", variant)
+        estimates.insert(1, "outcome", outcome)
+        estimates.insert(2, "positive_days", int(hot[outcome].sum()))
+        frames.append(estimates)
+    return pd.concat(frames, ignore_index=True)
 
 
 def association_estimates(base, full) -> pd.DataFrame:
@@ -105,7 +146,7 @@ def classification_metrics(y, probability, threshold: float) -> dict:
 
 def rolling_binary_validation(data: pd.DataFrame, origins: list[int], outcome: str = "persistent_36c_3d") -> pd.DataFrame:
     predictors = list(PRIMARY_ASSOCIATION_PREDICTORS)
-    rows = []
+    rows = []; pooled = {"seasonal_trend_base": [], "antecedent_full": []}
     for year in origins:
         train = data[(data.year < year) & data.month.isin([3, 4, 5, 6])].dropna(subset=[outcome] + predictors)
         test = data[(data.year == year) & data.month.isin([3, 4, 5, 6])].dropna(subset=[outcome] + predictors)
@@ -121,5 +162,23 @@ def rolling_binary_validation(data: pd.DataFrame, origins: list[int], outcome: s
             finite=np.isfinite(candidates); scores=tpr[finite]-fpr[finite]
             threshold=float(candidates[finite][int(np.nanargmax(scores))])
             metrics = classification_metrics(test[outcome], model.predict(Xte), threshold)
-            rows.append({"validation_year": year, "model": model_name, "train_end_year": year - 1, **metrics})
+            probability = model.predict(Xte)
+            metrics = classification_metrics(test[outcome], probability, threshold)
+            rows.append({"validation_scope": "held_out_season", "validation_year": year,
+                         "model": model_name, "train_end_year": year - 1, **metrics})
+            pooled[model_name].append((test[outcome].to_numpy(dtype=int), np.asarray(probability), threshold))
+    for model_name, pieces in pooled.items():
+        if not pieces:
+            continue
+        y = np.concatenate([piece[0] for piece in pieces])
+        probability = np.concatenate([piece[1] for piece in pieces])
+        # Thresholds remain training-origin specific for classification metrics.
+        prediction = np.concatenate([piece[1] >= piece[2] for piece in pieces])
+        metrics = classification_metrics(y, probability, .5)
+        tn, fp, fn, tp = confusion_matrix(y, prediction, labels=[0, 1]).ravel()
+        metrics["threshold"] = np.nan
+        metrics["sensitivity"] = tp / (tp + fn) if tp + fn else np.nan
+        metrics["specificity"] = tn / (tn + fp) if tn + fp else np.nan
+        rows.append({"validation_scope": "pooled_strictly_out_of_sample", "validation_year": np.nan,
+                     "model": model_name, "train_end_year": max(origins) - 1, **metrics})
     return pd.DataFrame(rows)

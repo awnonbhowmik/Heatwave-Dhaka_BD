@@ -22,6 +22,22 @@ def main(config_path):
     assert not missing,f"Missing tables: {missing}"
     assert len(list((out/"figures").glob("figure*.png")))==10
     assert len(list((out/"figures").glob("figure*.pdf")))==10
+    required_main_tables=[
+        "main_table01_data_and_descriptive_statistics.csv",
+        "main_table02_correlations_and_collinearity.csv",
+        "main_table03_definition_sensitivity.csv",
+        "main_table04_temperature_trends.csv",
+        "main_table05_poisson_nb_comparison.csv",
+        "main_table06_primary_count_model.csv",
+        "main_table07_adjusted_associations.csv",
+        "main_table08_blocked_validation.csv",
+    ]
+    for name in required_main_tables:
+        assert (out/"tables"/name).exists(),f"Missing original-article table: {name}"
+        assert (out/"tables"/"main"/name).exists(),f"Missing organized main table: {name}"
+    assert len(list((out/"figures"/"main").glob("figure*.png")))==7
+    assert len(list((out/"figures"/"main").glob("figure*.pdf")))==7
+    assert len(list((out/"figures"/"supplement").glob("figureS*.png")))>=2
     future=pd.read_csv(out/"tables"/"table20_future_temperature_projections.csv")
     assert (future.ci_lower<=future.mean_tmax).all() and (future.mean_tmax<=future.ci_upper).all()
     assert (future.prediction_lower<=future.mean_tmax).all() and (future.mean_tmax<=future.prediction_upper).all()
@@ -33,7 +49,7 @@ def main(config_path):
     estimate=pd.read_csv(out/"tables"/"table12_selected_count_model.csv").iloc[0]
     report=(ROOT/"reports"/"statistical_analysis_report.md").read_text()
     assert f"{estimate.incidence_rate_ratio:.3f}" in report
-    print(f"Validated {len(csvs)} CSV tables, 10 PNG + 10 PDF figures, intervals, source hashes, and report consistency.")
+    print(f"Validated {len(csvs)} numbered CSV tables, 8 main article tables, 7 main figures, supplementary figures, intervals, source hashes, and report consistency.")
 
 
 if __name__=="__main__":

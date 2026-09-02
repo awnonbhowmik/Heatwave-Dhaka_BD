@@ -28,7 +28,8 @@ from statsmodels.stats.multitest import multipletests
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"src"))
 
-from heatwave_analysis.association_models import (association_estimates, construct_antecedent_predictors, fit_association_models, rolling_binary_validation)
+from heatwave_analysis.article_outputs import generate_article_outputs
+from heatwave_analysis.association_models import (association_estimates, association_sensitivity, construct_antecedent_predictors, fit_association_models, rolling_binary_validation)
 from heatwave_analysis.count_models import (count_distribution_diagnostics, fit_count_models, influence_diagnostics, leave_one_influential_year_out, model_estimates)
 from heatwave_analysis.data_io import complete_years, hot_season, load_daily, source_hashes
 from heatwave_analysis.exploratory import collinearity_assessment, correlation_outputs, descriptive_statistics, grouped_descriptives
@@ -37,7 +38,7 @@ from heatwave_analysis.heatwave_events import aggregate_metrics, construct_all_d
 from heatwave_analysis.plotting import generate_figures
 from heatwave_analysis.quality_control import completeness_table, data_dictionary, quality_findings
 from heatwave_analysis.reporting import markdown_tables, write_reports
-from heatwave_analysis.trend_models import annual_temperature_series, fit_temperature_trends, test_tmax_tmin_slope_difference
+from heatwave_analysis.trend_models import annual_temperature_series, fit_temperature_trends, hot_season_endpoint_sensitivity, test_tmax_tmin_slope_difference
 from heatwave_analysis.variable_dictionary import CORRELATION_VARIABLES, DESCRIPTIVE_VARIABLES, PRIMARY_ASSOCIATION_PREDICTORS
 
 
@@ -90,6 +91,7 @@ def main(config_path: str):
     df.to_csv(dirs["derived_data"]/"daily_analysis_data.csv",index=False,float_format="%.8g")
 
     temp_series=annual_temperature_series(df,cfg["analysis"]["complete_year_end"]); trends=fit_temperature_trends(temp_series)
+    temp_sensitivity=hot_season_endpoint_sensitivity(temp_series)
     contrast=test_tmax_tmin_slope_difference(temp_series); contrast_row={"outcome":"formal_tmin_minus_tmax_slope_difference","ols_hac_slope_per_decade":contrast["difference_per_decade"],"ols_hac_ci_lower":contrast["ci_lower"],"ols_hac_ci_upper":contrast["ci_upper"],"ols_hac_p_value":contrast["p_value"],"contrast":contrast["contrast"]}; trends=pd.concat([trends,pd.DataFrame([contrast_row])],ignore_index=True)
     trends=bh(trends.rename(columns={"ols_hac_p_value":"p_value"})).rename(columns={"p_value":"ols_hac_p_value"}); write_csv(trends,dirs["tables"]/"table09_temperature_trends.csv")
     primary_counts=annual[(annual.definition=="persistent_36c_3d") & annual.year.le(2024)].copy()
@@ -98,7 +100,7 @@ def main(config_path: str):
     dist=count_distribution_diagnostics(primary_hot); write_csv(dist,dirs["tables"]/"table10_count_distribution_diagnostics.csv")
     count_data,pois,nb,selected,selected_name,comparison=fit_count_models(primary_hot); write_csv(comparison,dirs["tables"]/"table11_poisson_nb_comparison.csv")
     estimates=model_estimates(selected,selected_name); write_csv(estimates,dirs["tables"]/"table12_selected_count_model.csv")
-    count_diag=influence_diagnostics(count_data,pois,selected,selected_name); count_diag.to_csv(dirs["diagnostics"]/"selected_count_model_diagnostics.csv",index=False)
+    count_diag=influence_diagnostics(count_data,pois,selected,selected_name,seed=seed); count_diag.to_csv(dirs["diagnostics"]/"selected_count_model_diagnostics.csv",index=False)
     influence=leave_one_influential_year_out(count_data,count_diag); write_csv(influence,dirs["tables"]/"table13_influence_sensitivity.csv")
     # Required monthly count specification, retained as a diagnostic sensitivity.
     m=daily_events[daily_events.month.isin([3,4,5,6])].groupby(["year","month"]).agg(heatwave_days=("persistent_36c_3d","sum"),observed_days=("date","nunique")).reset_index(); m["decade"]=(m.year-m.year.mean())/10
@@ -106,10 +108,12 @@ def main(config_path: str):
     monthly_model=smf.glm("heatwave_days ~ decade + C(month)",m,family=sm.families.Poisson(),offset=np.log(m.observed_days)).fit(cov_type="cluster",cov_kwds={"groups":m.year})
     pd.DataFrame({"term":monthly_model.params.index,"coefficient":monthly_model.params.values,"se":monthly_model.bse.values,"p_value":monthly_model.pvalues.values}).to_csv(dirs["diagnostics"]/"monthly_count_model.csv",index=False)
 
-    modeled=construct_antecedent_predictors(df); hot_model,base,full,_,_=fit_association_models(modeled); assoc=bh(association_estimates(base,full));
+    modeled=construct_antecedent_predictors(df); hot_model,base,full,_,full_standardization=fit_association_models(modeled); assoc=bh(association_estimates(base,full));
     selection=pd.DataFrame([{"predictor":p,"lag_structure":p.split("_lag",1)[1],"target_derived":False,"primary_model":True,"reason":"antecedent, interpretable, prespecified after domain/collinearity review"} for p in PRIMARY_ASSOCIATION_PREDICTORS])
     write_csv(selection,dirs["tables"]/"table14_predictor_selection.csv"); write_csv(assoc,dirs["tables"]/"table15_adjusted_association_model.csv")
     binary=rolling_binary_validation(modeled,cfg["analysis"]["binary_validation_origins"]); write_csv(binary,dirs["tables"]/"table16_binary_model_validation.csv")
+    influential_years=count_diag.loc[count_diag.influential,"year"].astype(int).tolist()
+    assoc_sensitivity=association_sensitivity(modeled,influential_years)
 
     design=forecast_design(); write_csv(design,dirs["tables"]/"table17_forecast_design.csv")
     month_temp=monthly_temperature(df); performance,predictions=rolling_origin_forecasts(month_temp,cfg["analysis"]["forecast_origins"])
@@ -131,10 +135,25 @@ def main(config_path: str):
     gfw=pd.read_csv(ROOT/cfg["data"]["tree_cover_csv"]); g=gfw.dropna(subset=["Tree_Cover_Loss_Year"]).drop_duplicates("Tree_Cover_Loss_Year"); g=g.rename(columns={"Tree_Cover_Loss_Year":"year","umd_tree_cover_loss__ha":"loss"}); annual_t=df.groupby("year").tmax.mean().reset_index(); tg=g.merge(annual_t,on="year"); raw_r,raw_p=stats.spearmanr(tg.loss,tg.tmax); loss_res=stats.linregress(tg.year,tg.loss); temp_res=stats.linregress(tg.year,tg.tmax); det_r,det_p=stats.spearmanr(tg.loss-(loss_res.intercept+loss_res.slope*tg.year),tg.tmax-(temp_res.intercept+temp_res.slope*tg.year)); sens.extend([{"analysis":"tree_cover","variant":"raw_spearman","estimate":raw_r,"ci_lower":np.nan,"ci_upper":np.nan,"conclusion":"unsupported"},{"analysis":"tree_cover","variant":"detrended_spearman","estimate":det_r,"ci_lower":np.nan,"ci_upper":np.nan,"conclusion":"unsupported"}])
     sensitivity=pd.DataFrame(sens); write_csv(sensitivity,dirs["tables"]/"table22_sensitivity_summary.csv")
     generate_figures(df,completeness,raw_corr,anom_corr,daily_events,events,annual,count_diag,estimates,assoc,binary,predictions,performance,future_counts,dirs["figures"])
+    generate_article_outputs(
+        df=modeled, completeness=completeness, raw_corr=raw_corr, anomaly_corr=anom_corr,
+        daily_events=daily_events, events=events, temperature_series=temp_series,
+        temperature_trends=trends, temperature_sensitivity=temp_sensitivity,
+        count_distribution=dist, count_comparison=comparison, count_estimates=estimates,
+        count_data=count_data, count_model=selected, count_model_name=selected_name,
+        count_diagnostics=count_diag, influence_sensitivity=influence,
+        hot_model=hot_model, association_model=full, association_standardization=full_standardization,
+        association_estimates_frame=assoc, association_sensitivity_frame=assoc_sensitivity,
+        binary_validation=binary, forecast_performance=performance,
+        forecast_predictions=predictions, output_root=out,
+    )
     markdown_tables(dirs["tables"]); notebook_files()
-    start_sha=subprocess.check_output(["git","rev-list","--max-parents=0","HEAD"],cwd=ROOT,text=True).strip()
-    # Mandated starting main SHA is fixed in the baseline audit for this run.
-    start_sha="926400ce49ebf2e8e87561beeedb7be93a19dcaf"
+    try:
+        start_sha=subprocess.check_output(
+            ["git","merge-base","HEAD","analysis/methods-first-rebuild"],cwd=ROOT,text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        start_sha=subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip()
     q.update({"mean_tmax":float(df.tmax.mean()),"maximum_tmax":float(df.tmax.max()),"maximum_tmax_date":str(df.loc[df.tmax.idxmax(),"date"].date()),"operational_days":int(df.operational_36c_1d.sum()),"operational_events":int((events.definition=="operational_36c_1d").sum()),"primary_days":int(df.persistent_36c_3d.sum()),"primary_events":int((events.definition=="persistent_36c_3d").sum()),"longest_primary_event":int(events.loc[events.definition=="persistent_36c_3d","duration"].max())})
     legacy=json.loads(Path("/tmp/legacy_notebook_execution.json").read_text()) if Path("/tmp/legacy_notebook_execution.json").exists() else {"success":False,"message":"not available"}
     write_reports(reports,q,trends,comparison,estimates,assoc,binary,performance,future_counts,sensitivity,start_sha,legacy)

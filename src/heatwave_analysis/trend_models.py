@@ -48,11 +48,25 @@ def fit_temperature_trends(series: pd.DataFrame) -> pd.DataFrame:
             "outcome": outcome, "n_years": len(d), "start_year": d.year.min(), "end_year": d.year.max(),
             "ols_hac_slope_per_decade": slope, "ols_hac_se": ols.bse["year"],
             "ols_hac_ci_lower": ci[0], "ols_hac_ci_upper": ci[1], "ols_hac_p_value": ols.pvalues["year"],
+            "r_squared": ols.rsquared,
             "sen_slope_per_decade": sen * 10, "sen_ci_lower_per_decade": sen_lo * 10,
             "sen_ci_upper_per_decade": sen_hi * 10, "mann_kendall_tau": tau,
             "mann_kendall_p_value": mkp, "residual_lag1_correlation": lag1, "mann_kendall_method": method,
         })
     return pd.DataFrame(rows)
+
+
+def hot_season_endpoint_sensitivity(series: pd.DataFrame) -> pd.DataFrame:
+    """Refit hot-season trends through 2023 and 2024 using the same HAC model."""
+    rows = []
+    for endpoint in (2023, 2024):
+        subset = series[series.year <= endpoint]
+        fitted = fit_temperature_trends(
+            subset[["year", "march_june_mean_tmax", "march_june_mean_tmin"]]
+        )
+        fitted.insert(1, "endpoint", endpoint)
+        rows.append(fitted)
+    return pd.concat(rows, ignore_index=True)
 
 
 def test_tmax_tmin_slope_difference(series: pd.DataFrame) -> dict:
