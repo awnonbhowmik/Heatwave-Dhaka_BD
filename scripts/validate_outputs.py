@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from zipfile import ZipFile
 
 import pandas as pd
 import yaml
@@ -49,7 +50,29 @@ def main(config_path):
     estimate=pd.read_csv(out/"tables"/"table12_selected_count_model.csv").iloc[0]
     report=(ROOT/"reports"/"statistical_analysis_report.md").read_text()
     assert f"{estimate.incidence_rate_ratio:.3f}" in report
-    print(f"Validated {len(csvs)} numbered CSV tables, 8 main article tables, 7 main figures, supplementary figures, intervals, source hashes, and report consistency.")
+    definition_table=pd.read_csv(out/"tables"/"main_table03_definition_sensitivity.csv")
+    compound=definition_table.loc[definition_table.definition.eq("compound_90p_2d")].iloc[0]
+    assert 0.12 < compound.q_value_bh_across_primary_definitions < 0.13
+    manuscript=(ROOT/"manuscript"/"original_article_clean.md").read_text()
+    assert "\\(q=0.126\\)" in manuscript
+    assert "systematic underprediction" in manuscript
+    required_docs=[
+        "original_article_clean.docx",
+        "original_article_updates_highlighted_yellow.docx",
+        "supplementary_material.docx",
+    ]
+    for name in required_docs:
+        path=ROOT/"manuscript"/name
+        assert path.exists() and path.stat().st_size>10_000,f"Missing or empty Word deliverable: {name}"
+        with ZipFile(path) as archive:
+            xml=archive.read("word/document.xml").decode("utf-8")
+            assert "Long-Term Warming" in xml
+            assert "w:tbl" in xml
+    highlighted=ROOT/"manuscript"/"original_article_updates_highlighted_yellow.docx"
+    with ZipFile(highlighted) as archive:
+        xml=archive.read("word/document.xml").decode("utf-8")
+        assert 'w:highlight w:val="yellow"' in xml
+    print(f"Validated {len(csvs)} numbered CSV tables, 8 main article tables, 7 main figures, supplementary figures, intervals, source hashes, manuscript claims, and editable Word deliverables.")
 
 
 if __name__=="__main__":
