@@ -1,6 +1,6 @@
 # Baseline repository audit
 
-- Starting main commit: `926400ce49ebf2e8e87561beeedb7be93a19dcaf`.
+- Starting main commit: `410e0011bc01bd7053e2a09e986d33cba4f1f049`.
 - Baseline branch was clean and synchronized with `origin/main`.
 - Legacy contents: one 49-cell notebook (24 code cells), 11 main PNG figures plus two supplementary PNGs, three tabular source files, and shapefiles.
 - Unchanged notebook execution: **failed** after 4.523 seconds at the study-area cell with `ModuleNotFoundError: geopandas`. The README environment omits that import.

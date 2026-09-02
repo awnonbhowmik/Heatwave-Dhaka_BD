@@ -57,9 +57,7 @@ def _study_area_figure(df,completeness,out):
     xmin,ymin,xmax,ymax=dhaka_shape.bbox; padx=(xmax-xmin)*.08; pady=(ymax-ymin)*.08
     ax[1].set(xlim=(xmin-padx,xmax+padx),ylim=(ymin-pady,ymax+pady),title="Dhaka District boundary",xlabel="Longitude (°E)",ylabel="Latitude (°N)")
     ax[1].set_aspect("equal"); ax[1].grid(False)
-    ax[1].scatter(90.4125,23.8103,s=42,color=PALETTE[0],edgecolor="white",linewidth=.7,zorder=5)
-    ax[1].annotate("Dhaka city reference",xy=(90.4125,23.8103),xytext=(90.05,24.05),arrowprops={"arrowstyle":"->","color":PALETTE[0]},color=PALETTE[0],fontsize=8)
-    ax[1].text(.02,.02,"Reference point only; exact station\ncoordinates are not documented.",transform=ax[1].transAxes,fontsize=7,va="bottom",bbox={"boxstyle":"round","facecolor":"white","alpha":.85,"edgecolor":"#BBBBBB"})
+    ax[1].text(.02,.02,"Exact station coordinates were not\ndocumented; no point is inferred.",transform=ax[1].transAxes,fontsize=7,va="bottom",bbox={"boxstyle":"round","facecolor":"white","alpha":.85,"edgecolor":"#BBBBBB"})
 
     colors=np.where(completeness.calendar_complete,PALETTE[2],PALETTE[1])
     ax[2].bar(completeness.year,completeness.observed_days,color=colors,width=.82)
@@ -112,7 +110,8 @@ def generate_figures(df, completeness, raw_corr, anomaly_corr, daily_events, eve
     # 4
     fig,ax=plt.subplots(1,3,figsize=(12,3.7)); am=annual_metrics[annual_metrics.definition.isin(["operational_36c_1d","persistent_36c_3d","relative_90p_3d"])]
     for name,g in am.groupby("definition"): ax[0].plot(g.year,g.heatwave_days,label=name,lw=1); ax[0].legend(fontsize=6); ax[0].set(title="Heatwave-day frequency",ylabel="Days")
-    sns.histplot(events.duration,bins=range(1,int(events.duration.max())+2),ax=ax[1],color=PALETTE[2]); ax[1].set_title("Event-duration distribution")
+    primary_events=events[events.definition.eq("persistent_36c_3d")]
+    sns.histplot(primary_events.duration,bins=range(1,int(primary_events.duration.max())+2),ax=ax[1],color=PALETTE[2]); ax[1].set_title(r"Primary-event duration ($T_{\max}\geq36\,{}^\circ\mathrm{C}$, $\geq3$ days)")
     month=daily_events.groupby("month")[[c for c in daily_events if c in ["operational_36c_1d","persistent_36c_3d"]]].sum(); month.plot.bar(ax=ax[2],color=PALETTE[:2],legend=False); ax[2].set_title("Monthly seasonality"); _save(fig,out,"figure04_heatwave_characteristics")
     # 5 count fit
     fig,ax=plt.subplots(figsize=(8,4)); ax.plot(count_diag.year,count_diag.observed,"o",color=PALETTE[0],label="Observed"); ax.plot(count_diag.year,count_diag.fitted,color=PALETTE[1],label="Fitted"); ax.legend(); ax.set(title="Persistent heatwave-day count trend",xlabel="Year",ylabel="March–June days"); _save(fig,out,"figure05_selected_count_trend")

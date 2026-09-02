@@ -10,8 +10,8 @@
     "pyshp": "2.3.1"
   },
   "random_seed": 20260901,
-  "starting_commit": "926400ce49ebf2e8e87561beeedb7be93a19dcaf",
-  "run_timestamp_utc": "2026-09-01T22:29:33.611771+00:00",
+  "starting_commit": "410e0011bc01bd7053e2a09e986d33cba4f1f049",
+  "run_timestamp_utc": "2026-09-02T02:05:26.054498+00:00",
   "config": {
     "seed": 20260901,
     "data": {
@@ -59,11 +59,30 @@
       ],
       "simulations": 5000,
       "binary_validation_origins": [
+        2000,
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
         2014,
+        2015,
         2016,
+        2017,
         2018,
+        2019,
         2020,
+        2021,
         2022,
+        2023,
         2024
       ]
     },
@@ -72,7 +91,7 @@
       "reports": "reports"
     }
   },
-  "runtime_seconds": 64.576,
+  "runtime_seconds": 119.041,
   "data_hashes": {
     "/home/awnon/Desktop/Heatwave-Dhaka_BD/data/1972_2024_Heatwave_Daily.csv": "54eb30f29579c4df34857ed57bc695d86eb95e6eb19f643012bfb1bb53a5aacc",
     "/home/awnon/Desktop/Heatwave-Dhaka_BD/data/1972_2024_Heatwave_Daily.xlsx": "357056b6056b37a6be73f69ffd2d4722eeacf0f328e4627a3eff6b4daa6d2292",

@@ -36,13 +36,23 @@ def fit_count_models(counts: pd.DataFrame, outcome: str = "heatwave_days"):
     select_nb = dispersion > 1.2 and nb.aic + 2 < poisson.aic and nb_ok
     selected = nb if select_nb else poisson
     selected_name = "negative_binomial" if select_nb else "poisson"
+    nb_mu = np.asarray(nb.predict())
+    nb_alpha = max(float(nb.params.get("alpha", np.nan)), 1e-12)
+    nb_variance = nb_mu + nb_alpha * nb_mu ** 2
+    nb_pearson = float(np.sum((d[outcome].to_numpy() - nb_mu) ** 2 / nb_variance))
+    y = d[outcome].to_numpy(dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        first = np.where(y > 0, y * np.log(y / nb_mu), 0.0)
+        second = (y + 1 / nb_alpha) * np.log((y + 1 / nb_alpha) / (nb_mu + 1 / nb_alpha))
+    nb_deviance = float(2 * np.sum(first - second))
     comparison = pd.DataFrame([
         {"model": "poisson", "aic": poisson.aic, "bic": getattr(poisson, "bic_llf", np.nan),
          "log_likelihood": poisson.llf, "residual_deviance": poisson.deviance,
-         "pearson_statistic": pearson, "dispersion_ratio": dispersion, "selected": not select_nb},
+         "pearson_statistic": pearson, "dispersion_ratio": dispersion, "converged": True,
+         "selected": not select_nb},
         {"model": "negative_binomial", "aic": nb.aic, "bic": nb.bic, "log_likelihood": nb.llf,
-         "residual_deviance": getattr(nb, "deviance", np.nan), "pearson_statistic": np.nan,
-         "dispersion_ratio": np.nan, "selected": select_nb},
+         "residual_deviance": nb_deviance, "pearson_statistic": nb_pearson,
+         "dispersion_ratio": nb_pearson / nb.df_resid, "converged": nb_ok, "selected": select_nb},
     ])
     return d, poisson, nb, selected, selected_name, comparison
 
@@ -60,24 +70,51 @@ def model_estimates(model, selected_name: str) -> pd.DataFrame:
     }])
 
 
-def influence_diagnostics(d: pd.DataFrame, poisson, selected, selected_name: str, outcome: str = "heatwave_days"):
-    influence = poisson.get_influence()
-    frame = influence.summary_frame()
+def influence_diagnostics(
+    d: pd.DataFrame, poisson, selected, selected_name: str,
+    outcome: str = "heatwave_days", seed: int = 20260901,
+):
+    """Distribution-consistent residuals and case-deletion parameter influence."""
     fitted = np.asarray(selected.predict())
     observed = d[outcome].to_numpy()
     if selected_name == "negative_binomial":
         alpha = float(selected.params.get("alpha", 0.0))
         variance = np.maximum(fitted + alpha * fitted ** 2, 1e-9)
+        size = 1 / max(alpha, 1e-12)
+        probability = size / (size + fitted)
+        lower = stats.nbinom.cdf(observed - 1, size, probability)
+        upper = stats.nbinom.cdf(observed, size, probability)
     else:
         variance = np.maximum(fitted, 1e-9)
-    randomized_q = stats.norm.ppf(np.clip(stats.poisson.cdf(observed, fitted) - .5 * stats.poisson.pmf(observed, fitted), 1e-6, 1-1e-6))
+        lower = stats.poisson.cdf(observed - 1, fitted)
+        upper = stats.poisson.cdf(observed, fitted)
+    rng = np.random.default_rng(seed)
+    randomized_q = stats.norm.ppf(np.clip(rng.uniform(lower, upper), 1e-6, 1 - 1e-6))
+
+    base_params = np.asarray(selected.params)[:2]
+    base_covariance = np.asarray(selected.cov_params())[:2, :2]
+    inverse_covariance = np.linalg.pinv(base_covariance)
+    distances = []
+    decade_changes = []
+    for index in d.index:
+        subset = d.drop(index=index)
+        x = sm.add_constant(subset[["decade"]])
+        if selected_name == "negative_binomial":
+            refit = sm.NegativeBinomial(subset[outcome], x).fit(disp=False, maxiter=500)
+        else:
+            refit = sm.GLM(subset[outcome], x, family=sm.families.Poisson()).fit()
+        delta = np.asarray(refit.params)[:2] - base_params
+        distances.append(float(delta @ inverse_covariance @ delta / len(base_params)))
+        decade_changes.append(float(delta[1]))
     diagnostics = d.copy()
     diagnostics["observed"] = observed
     diagnostics["fitted"] = fitted
     diagnostics["pearson_residual"] = (observed - fitted) / np.sqrt(variance)
     diagnostics["randomized_quantile_residual"] = randomized_q
-    diagnostics["leverage"] = frame["hat_diag"].to_numpy()
-    diagnostics["cooks_distance"] = frame["cooks_d"].to_numpy()
+    diagnostics["leverage"] = np.nan
+    diagnostics["cooks_distance"] = distances
+    diagnostics["case_deletion_decade_change"] = decade_changes
+    diagnostics["influence_method"] = f"case-deletion {selected_name} parameter distance"
     cutoff = 4 / len(d)
     diagnostics["influential"] = diagnostics.cooks_distance > cutoff
     return diagnostics
