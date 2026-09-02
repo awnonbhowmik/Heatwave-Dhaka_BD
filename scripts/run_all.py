@@ -108,7 +108,10 @@ def main(config_path: str):
     monthly_model=smf.glm("heatwave_days ~ decade + C(month)",m,family=sm.families.Poisson(),offset=np.log(m.observed_days)).fit(cov_type="cluster",cov_kwds={"groups":m.year})
     pd.DataFrame({"term":monthly_model.params.index,"coefficient":monthly_model.params.values,"se":monthly_model.bse.values,"p_value":monthly_model.pvalues.values}).to_csv(dirs["diagnostics"]/"monthly_count_model.csv",index=False)
 
-    modeled=construct_antecedent_predictors(df); hot_model,base,full,_,full_standardization=fit_association_models(modeled); assoc=bh(association_estimates(base,full));
+    modeled=construct_antecedent_predictors(df); hot_model,base,full,_,full_standardization=fit_association_models(modeled); assoc=association_estimates(base,full)
+    assoc["q_value_bh"]=np.nan
+    secondary_mask=assoc.model.eq("antecedent_full") & assoc.term.isin(PRIMARY_ASSOCIATION_PREDICTORS)
+    assoc.loc[secondary_mask,"q_value_bh"]=multipletests(assoc.loc[secondary_mask,"p_value"],method="fdr_bh")[1]
     selection=pd.DataFrame([{"predictor":p,"lag_structure":p.split("_lag",1)[1],"target_derived":False,"primary_model":True,"reason":"antecedent, interpretable, prespecified after domain/collinearity review"} for p in PRIMARY_ASSOCIATION_PREDICTORS])
     write_csv(selection,dirs["tables"]/"table14_predictor_selection.csv"); write_csv(assoc,dirs["tables"]/"table15_adjusted_association_model.csv")
     binary=rolling_binary_validation(modeled,cfg["analysis"]["binary_validation_origins"]); write_csv(binary,dirs["tables"]/"table16_binary_model_validation.csv")

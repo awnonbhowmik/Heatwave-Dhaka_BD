@@ -11,6 +11,7 @@ import seaborn as sns
 import statsmodels.api as sm
 from scipy import stats
 from scipy.special import expit
+from statsmodels.stats.multitest import multipletests
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from .association_models import _design
@@ -106,7 +107,13 @@ def definition_summary(df, daily_events, events) -> pd.DataFrame:
             "selected_count_model": model_name, "irr_per_decade": np.exp(model.params["decade"]),
             "irr_ci_lower": np.exp(ci[0]), "irr_ci_upper": np.exp(ci[1]), "p_value": model.pvalues["decade"],
         })
-    return pd.DataFrame(rows)
+    summary = pd.DataFrame(rows)
+    primary_reference = summary["reference_period"].isin(["absolute", "1981–2010"])
+    summary["q_value_bh_across_primary_definitions"] = np.nan
+    summary.loc[primary_reference, "q_value_bh_across_primary_definitions"] = multipletests(
+        summary.loc[primary_reference, "p_value"], method="fdr_bh"
+    )[1]
+    return summary
 
 
 def correlation_screening_table(df, raw_corr, anomaly_corr) -> pd.DataFrame:
@@ -270,14 +277,18 @@ def _figure07(hot_model, full_model, full_standardization, association, binary, 
     y = np.arange(len(forest)); ax[0, 0].errorbar(forest.adjusted_odds_ratio, y, xerr=[forest.adjusted_odds_ratio - forest.or_ci_lower, forest.or_ci_upper - forest.adjusted_odds_ratio], fmt="o", color=PALETTE[0], capsize=3)
     ax[0, 0].axvline(1, color="black", ls="--", lw=.8); ax[0, 0].set_xscale("log"); ax[0, 0].set(yticks=y, yticklabels=[pretty[x] for x in forest.term], xlabel="Adjusted odds ratio per 1 SD (log scale)", title="Adjusted antecedent associations"); ax[0, 0].invert_yaxis()
     terms = full_model._analysis_terms; params = pd.Series(np.asarray(full_model.params), index=terms)
+    parameter_covariance = np.asarray(full_model.cov_params())
     for predictor, color in zip(["rh_mean_lag3_mean", "precipitation_lag7_sum"], PALETTE[:2]):
         z = np.linspace(-2, 2, 100); design = pd.DataFrame(0.0, index=np.arange(len(z)), columns=terms); design["const"] = 1; design[predictor] = z
         representative_day = 110
         for harmonic in (1, 2, 3):
             design[f"sin_doy_{harmonic}"] = np.sin(2 * np.pi * harmonic * representative_day / 365.25)
             design[f"cos_doy_{harmonic}"] = np.cos(2 * np.pi * harmonic * representative_day / 365.25)
-        probability = expit(design.to_numpy() @ params.to_numpy())
+        matrix = design.to_numpy(); linear = matrix @ params.to_numpy()
+        linear_se = np.sqrt(np.einsum("ij,jk,ik->i", matrix, parameter_covariance, matrix))
+        probability = expit(linear)
         ax[0, 1].plot(z, probability, color=color, label=pretty[predictor])
+        ax[0, 1].fill_between(z, expit(linear - 1.96 * linear_se), expit(linear + 1.96 * linear_se), color=color, alpha=.14)
     ax[0, 1].set(xlabel="Antecedent predictor (SD from hot-season mean)", ylabel="Adjusted probability", title="Model-implied marginal probabilities"); ax[0, 1].legend(frameon=False, fontsize=8)
     held = binary[binary.validation_scope.eq("held_out_season")]
     for model, color in zip(["seasonal_trend_base", "antecedent_full"], PALETTE[:2]):

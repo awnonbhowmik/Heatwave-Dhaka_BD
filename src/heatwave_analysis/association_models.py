@@ -155,7 +155,12 @@ def rolling_binary_validation(data: pd.DataFrame, origins: list[int], outcome: s
         for model_name, model_predictors in [("seasonal_trend_base", []), ("antecedent_full", predictors)]:
             Xtr, means, scales = _design(train, model_predictors)
             Xte, _, _ = _design(test, model_predictors, means, scales)
-            model = sm.GLM(train[outcome].astype(int), Xtr, family=sm.families.Binomial()).fit()
+            model = sm.GEE(
+                train[outcome].astype(int).to_numpy(), Xtr.to_numpy(),
+                groups=train.year.to_numpy(), time=train.day_of_year.to_numpy(),
+                family=sm.families.Binomial(),
+                cov_struct=sm.cov_struct.Autoregressive(grid=True),
+            ).fit(maxiter=200)
             p_train = model.predict(Xtr)
             # Youden threshold is selected exclusively on training observations.
             fpr,tpr,candidates=roc_curve(train[outcome].astype(int),p_train)

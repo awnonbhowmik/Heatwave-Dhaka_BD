@@ -1,0 +1,3 @@
+outcome,n,mean,variance,variance_to_mean,zero_count,zero_fraction,minimum,maximum,skewness,section,model,term,coefficient,standard_error,ci_lower,ci_upper,p_value,incidence_rate_ratio,irr_ci_lower,irr_ci_upper,percentage_change_per_decade,aic,bic,log_likelihood
+heatwave_days,53,5.094339623,58.89477504,11.56082621,31,0.5849056604,0,28,1.507536138,distribution,,,,,,,,,,,,,,
+,,,,,,,,,,model,negative_binomial,decade,0.02838603949,0.1768111663,-0.3181574785,0.3749295575,0.8724522629,1.028792762,0.7274882157,1.454888925,2.879276241,245.1811449,251.0920207,-119.5905725
