@@ -1,0 +1,7 @@
+{
+  "prepare": "reused_complete_output",
+  "smoke": "not_run",
+  "benchmark": "not_run",
+  "evaluate": "complete",
+  "explanations_reports": "deferred"
+}

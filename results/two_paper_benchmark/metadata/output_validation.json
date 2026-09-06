@@ -1,0 +1,56 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "check": "feature_window_ends_at_issue",
+      "passed": true
+    },
+    {
+      "check": "target_strictly_future",
+      "passed": true
+    },
+    {
+      "check": "label_available_at_target_end",
+      "passed": true
+    },
+    {
+      "check": "all_outer_years_retained",
+      "passed": true
+    },
+    {
+      "check": "all_training_labels_available",
+      "passed": true
+    },
+    {
+      "check": "pooled_metric_reconciliation",
+      "passed": true,
+      "maximum_absolute_error": 4.504201324417867e-09
+    },
+    {
+      "check": "confusion_reconciliation",
+      "passed": true,
+      "count_error": 0
+    },
+    {
+      "check": "shap_additivity",
+      "passed": true,
+      "maximum_absolute_error": 2.015847713e-06
+    },
+    {
+      "check": "raw_data_and_manuscripts_unchanged",
+      "passed": true
+    },
+    {
+      "check": "seven_png_and_vector_figures",
+      "passed": true
+    },
+    {
+      "check": "required_reports_present",
+      "passed": true
+    },
+    {
+      "check": "narrative_primary_ap_reconciles",
+      "passed": true
+    }
+  ]
+}

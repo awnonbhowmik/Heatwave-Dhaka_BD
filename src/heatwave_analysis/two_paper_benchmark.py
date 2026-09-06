@@ -507,18 +507,19 @@ def year_block_bootstrap(predictions: pd.DataFrame, draws: int, seed: int) -> pd
             observed[feature_set] = {"average_precision": average_precision_score(f.outcome, f.probability) if f.outcome.sum() else np.nan, "brier_score": brier_score_loss(f.outcome, f.probability)}
         for metric in ["average_precision", "brier_score"]:
             values = [] ; undefined = 0
-            for _ in range(draws):
-                sampled = rng.choice(years, len(years), replace=True)
-                pieces = []
-                for draw_id, year in enumerate(sampled):
-                    piece = frame[frame.outer_fold.eq(year)].copy(); piece["draw_id"] = draw_id; pieces.append(piece)
-                boot = pd.concat(pieces, ignore_index=True)
+            arrays = {fs: {year: (
+                frame[(frame.feature_set == fs) & (frame.outer_fold == year)].outcome.to_numpy(dtype=int),
+                frame[(frame.feature_set == fs) & (frame.outer_fold == year)].probability.to_numpy(dtype=float),
+            ) for year in years} for fs in ["S1", "S2"]}
+            sampled_years = rng.choice(years, size=(draws, len(years)), replace=True)
+            for sampled in sampled_years:
                 scores = {}
                 for fs in ["S1", "S2"]:
-                    f = boot[boot.feature_set.eq(fs)]
+                    y = np.concatenate([arrays[fs][year][0] for year in sampled])
+                    p = np.concatenate([arrays[fs][year][1] for year in sampled])
                     if metric == "average_precision":
-                        scores[fs] = average_precision_score(f.outcome, f.probability) if f.outcome.sum() else np.nan
-                    else: scores[fs] = brier_score_loss(f.outcome, f.probability)
+                        scores[fs] = average_precision_score(y, p) if y.sum() else np.nan
+                    else: scores[fs] = float(np.mean((y - p) ** 2))
                 delta = scores["S2"] - scores["S1"]
                 if np.isfinite(delta): values.append(delta)
                 else: undefined += 1

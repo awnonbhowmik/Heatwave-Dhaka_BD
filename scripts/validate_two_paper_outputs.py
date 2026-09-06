@@ -46,12 +46,13 @@ def main() -> None:
     checks.append({"check": "seven_png_and_vector_figures", "passed": figure_ok})
     required_reports = ["source_method_transfer.md", "implementation_gap_audit.md", "prediction_contract.md", "analysis_results_brief.md", "monthly_feasibility.md", "AUTHOR_METHODS_GUIDE.md", "DECISION_FOR_PROFESSOR.md"]
     checks.append({"check": "required_reports_present", "passed": all((reports / name).exists() for name in required_reports)})
-    leading = metrics[(metrics.scope == "pooled_strictly_out_of_sample") & (metrics.feature_set == "S2") & (metrics.lead == 1) & metrics.model.isin(cfg["models"]["families"])].sort_values("average_precision", ascending=False).iloc[0]
+    leading = metrics[(metrics.scope == "pooled_strictly_out_of_sample") & (metrics.feature_set.isin(["S1", "S2"])) & (metrics.lead == 1) & metrics.model.isin(cfg["models"]["families"])].sort_values("average_precision", ascending=False).iloc[0]
     brief = (reports / "analysis_results_brief.md").read_text()
     checks.append({"check": "narrative_primary_ap_reconciles", "passed": f"AP **{leading.average_precision:.3f}**" in brief})
     result = {"status": "passed" if all(row["passed"] for row in checks) else "failed", "checks": checks}
-    path = output / "metadata/output_validation.json"; path.write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result, indent=2))
+    json_default = lambda value: value.item() if isinstance(value, np.generic) else str(value)
+    path = output / "metadata/output_validation.json"; path.write_text(json.dumps(result, indent=2, default=json_default) + "\n")
+    print(json.dumps(result, indent=2, default=json_default))
     if result["status"] != "passed": raise SystemExit(1)
 
 

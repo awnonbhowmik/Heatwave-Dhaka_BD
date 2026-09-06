@@ -98,7 +98,7 @@ def prepare(cfg: dict, output: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         {"quantity": "missing_calendar_dates", "value": len(expected.difference(daily.date))},
         {"quantity": "earliest_date", "value": daily.date.min().date().isoformat()},
         {"quantity": "latest_date", "value": daily.date.max().date().isoformat()},
-        {"quantity": "missing_missing_air_temperature_source", "value": "Meteoblue-formatted export; station/product identity unresolved"},
+        {"quantity": "unresolved_air_temperature_source", "value": "Meteoblue-formatted export; station/product identity unresolved"},
     ])
     write_csv(audit, data_dir / "raw_date_and_provenance_audit.csv")
     (data_dir / "quality_findings.json").write_text(json.dumps(q, indent=2, default=str) + "\n")

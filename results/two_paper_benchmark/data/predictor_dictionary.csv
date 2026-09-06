@@ -1,0 +1,31 @@
+feature,information_set,source_variable,unit,aggregation,availability
+target_sin1,S0,target_start calendar,unitless,harmonic/calendar trend,known at issue time
+target_cos1,S0,target_start calendar,unitless,harmonic/calendar trend,known at issue time
+target_sin2,S0,target_start calendar,unitless,harmonic/calendar trend,known at issue time
+target_cos2,S0,target_start calendar,unitless,harmonic/calendar trend,known at issue time
+time_decades,S0,issue_date,unitless,harmonic/calendar trend,known at issue time
+tmax_latest,S1,daily maximum temperature,degC,latest,t-6 through t only
+tmin_latest,S1,daily minimum temperature,degC,latest,t-6 through t only
+tmax_mean3,S1,daily maximum temperature,degC,mean3,t-6 through t only
+tmin_mean3,S1,daily minimum temperature,degC,mean3,t-6 through t only
+tmax_mean7,S1,daily maximum temperature,degC,mean7,t-6 through t only
+tmin_mean7,S1,daily minimum temperature,degC,mean7,t-6 through t only
+tmax_sd7,S1,daily maximum temperature,degC,sd7,t-6 through t only
+tmin_sd7,S1,daily minimum temperature,degC,sd7,t-6 through t only
+tmax_trend7,S1,daily maximum temperature,degC,trend7,t-6 through t only
+tmin_trend7,S1,daily minimum temperature,degC,trend7,t-6 through t only
+observed_hot_run_length,S1,daily maximum temperature,days,consecutive observed days through issue,t-6 through t only
+rh_mean_latest,S2,relative humidity,%,latest,t-6 through t only
+rh_mean_mean7,S2,relative humidity,%,mean7,t-6 through t only
+precipitation_latest,S2,precipitation,mm/day,latest,t-6 through t only
+precipitation_sum7,S2,precipitation,mm/day,sum7,t-6 through t only
+wind_speed_mean_latest,S2,wind speed,km/h,latest,t-6 through t only
+wind_speed_mean_mean7,S2,wind speed,km/h,mean7,t-6 through t only
+pressure_mean_latest,S2,mean sea-level pressure,hPa,latest,t-6 through t only
+pressure_mean_mean7,S2,mean sea-level pressure,hPa,mean7,t-6 through t only
+cloud_cover_latest,S2,cloud cover,%,latest,t-6 through t only
+cloud_cover_mean7,S2,cloud cover,%,mean7,t-6 through t only
+shortwave_radiation_latest,S2,shortwave radiation,kJ/m2/day,latest,t-6 through t only
+shortwave_radiation_mean7,S2,shortwave radiation,kJ/m2/day,mean7,t-6 through t only
+soil_moisture_mean_latest,S2,shallow soil moisture,m3/m3,latest,t-6 through t only
+soil_moisture_mean_mean7,S2,shallow soil moisture,m3/m3,mean7,t-6 through t only

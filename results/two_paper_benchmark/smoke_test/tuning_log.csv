@@ -1,0 +1,5 @@
+candidate_id,inner_fold,family,parameters,train_end,validation_start,validation_end,validation_years,average_precision,warning,failure
+1,1,logistic,"{""model__C"": 0.3, ""model__l1_ratio"": 0.75}",2015-06-27,2016-02-29,2019-06-27,"2016,2017,2018,2019",0.4338235294,ConvergenceWarning: The max_iter was reached which means the coef_ did not converge,
+1,2,logistic,"{""model__C"": 0.3, ""model__l1_ratio"": 0.75}",2019-06-27,2020-02-29,2023-06-27,"2020,2021,2022,2023",0.5177760931,ConvergenceWarning: The max_iter was reached which means the coef_ did not converge,
+2,1,logistic,"{""model__C"": 0.3, ""model__l1_ratio"": 1.0}",2015-06-27,2016-02-29,2019-06-27,"2016,2017,2018,2019",0.4322344322,ConvergenceWarning: The max_iter was reached which means the coef_ did not converge,
+2,2,logistic,"{""model__C"": 0.3, ""model__l1_ratio"": 1.0}",2019-06-27,2020-02-29,2023-06-27,"2020,2021,2022,2023",0.506037007,ConvergenceWarning: The max_iter was reached which means the coef_ did not converge,

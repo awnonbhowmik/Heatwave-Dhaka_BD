@@ -1,0 +1,21 @@
+{
+  "status": "complete",
+  "runtime_seconds": 26.698,
+  "leading_explained_tree": "xgboost",
+  "completed": [
+    "history sensitivity",
+    "relative threshold sensitivity",
+    "calibration comparison",
+    "out-of-sample SHAP",
+    "grouped permutation",
+    "seven figures",
+    "reports",
+    "review archive"
+  ],
+  "failed": [],
+  "deferred": [
+    "one-to-five-month seasonal benchmark",
+    "new external weather acquisition",
+    "optional LightGBM/CNN"
+  ]
+}

@@ -8,3 +8,5 @@ The implementation follows the installed APIs and official documentation for:
 - [SHAP TreeExplainer](https://shap.readthedocs.io/en/stable/generated/shap.TreeExplainer.html), using a training-only background and the interventional feature-dependence option.
 
 The recorded environment, estimator parameters, warnings, seeds, thread caps, and additivity checks are saved under `results/two_paper_benchmark/metadata`, `tuning`, and `explanations`. SHAP output scales are recorded per fold because scikit-learn forest binary outputs and XGBoost raw margins are not interchangeable.
+
+Runtime compatibility note: the initially pinned SHAP 0.49.1 could not parse XGBoost 3.1.1's vector-valued serialized `base_score` (`ValueError: could not convert string to float: '[5E-1]'`). No estimator was substituted. SHAP was upgraded to 0.52.0, the failure was retained in the execution history, and the explanation stage was rerun with additivity validation.

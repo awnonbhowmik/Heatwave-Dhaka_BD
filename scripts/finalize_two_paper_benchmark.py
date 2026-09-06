@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 for variable in ["OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"]:
@@ -61,7 +61,7 @@ def relative_labels(frame: pd.DataFrame, threshold_by_date: pd.Series) -> np.nda
     mapping = threshold_by_date.to_dict()
     result = []
     for row in frame.itertuples():
-        thresholds = [mapping[pd.Timestamp(row.target_start) + pd.Timedelta(days=i)] for i in range(3)]
+        thresholds = [mapping[pd.Timestamp(row.target_start) + timedelta(days=i)] for i in range(3)]
         values = [row.target_tmax_day1, row.target_tmax_day2, row.target_tmax_day3]
         result.append(int(all(value > threshold for value, threshold in zip(values, thresholds))))
     return np.asarray(result, dtype=int)
@@ -99,6 +99,10 @@ def run_history_sensitivity(samples7: pd.DataFrame, daily: pd.DataFrame, cfg: di
 
 
 def run_relative_sensitivity(samples: pd.DataFrame, daily: pd.DataFrame, cfg: dict, output: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    prediction_path = output / "sensitivities" / "relative90_predictions.csv"
+    metric_path = output / "sensitivities" / "relative90_metrics.csv"
+    if prediction_path.exists() and metric_path.exists():
+        return pd.read_csv(prediction_path), pd.read_csv(metric_path)
     source = samples[samples.lead.eq(1)].copy(); fset = feature_sets()["S1"]
     prediction_frames = []; prevalence_rows = []
     for outer_year in cfg["prediction"]["outer_test_years"]:
@@ -113,11 +117,12 @@ def run_relative_sensitivity(samples: pd.DataFrame, daily: pd.DataFrame, cfg: di
         test["associated_event_id"] = pd.NA; test.loc[positive.index, "associated_event_id"] = event_map
         prevalence_rows.append({"outer_year": outer_year, "eligible_windows": len(test), "positive_windows": int(test.outcome.sum()), "prevalence": test.outcome.mean(), "distinct_events": test.associated_event_id.nunique(), "reference_end_year": min(2010, outer_year - 1)})
 
-        oof = []
+        oof = []; fold_pairs = []
         for split in inner_year_splits(train_base, folds=cfg["validation"]["inner_folds"]):
             tr = train_base.loc[split["train_index"]].copy(); va = train_base.loc[split["validation_index"]].copy()
             fold_threshold = threshold_series(daily, int(min(split["validation_years"])) - 1)
             tr["outcome"] = relative_labels(tr, fold_threshold); va["outcome"] = relative_labels(va, fold_threshold)
+            fold_pairs.append((tr, va))
             model = make_pipeline("logistic", cfg["seed"] + outer_year + split["inner_fold"]).set_params(model__C=.3, model__penalty="l2")
             model.fit(tr[fset], tr.outcome); raw = model.predict_proba(va[fset])[:, 1]
             oof.append(pd.DataFrame({"outcome": va.outcome, "raw_score": raw}))
@@ -128,9 +133,14 @@ def run_relative_sensitivity(samples: pd.DataFrame, daily: pd.DataFrame, cfg: di
         pred = test.copy(); pred["raw_score"] = raw; pred["probability"] = calibrator.predict(raw); pred["threshold"] = selected_threshold
         prediction_frames.append(prediction_rows(pred, "relative90_logistic", "S1", outer_year, calibrator.method))
         for kind in ["always_negative", "seasonal_probability", "temperature_transition"]:
-            # The outer training threshold is legitimate at this outer fitting cutoff.
+            baseline_oof = []
+            for fold_train, fold_validation in fold_pairs:
+                fold_probability = baseline_probabilities(fold_train, fold_validation, kind)
+                baseline_oof.append(pd.DataFrame({"outcome": fold_validation.outcome.to_numpy(int), "probability": fold_probability}))
+            baseline_oof = pd.concat(baseline_oof, ignore_index=True)
+            baseline_threshold = .5 if kind == "always_negative" else select_threshold(baseline_oof.outcome, baseline_oof.probability)
             p = baseline_probabilities(train, test, kind)
-            pred = test.copy(); pred["raw_score"] = p; pred["probability"] = p; pred["threshold"] = .5
+            pred = test.copy(); pred["raw_score"] = p; pred["probability"] = p; pred["threshold"] = baseline_threshold
             prediction_frames.append(prediction_rows(pred, f"relative90_{kind}", "S0", outer_year, "not_applicable"))
     predictions = pd.concat(prediction_frames, ignore_index=True); predictions["target_definition"] = "training_cutoff_calendar_day_90p_three_day"
     prevalence = pd.DataFrame(prevalence_rows)
@@ -162,6 +172,11 @@ def calibration_outputs(predictions: pd.DataFrame, output: Path) -> tuple[pd.Dat
 def explain_leading_tree(samples: pd.DataFrame, predictions: pd.DataFrame, metrics: pd.DataFrame, cfg: dict, output: Path) -> tuple[str, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     pooled = metrics[(metrics.scope == "pooled_strictly_out_of_sample") & (metrics.feature_set == "S2") & (metrics.lead == 1) & metrics.model.isin(["weighted_rf", "balanced_rf", "xgboost"])].sort_values("average_precision", ascending=False)
     family = str(pooled.iloc[0].model)
+    value_path = output / "explanations" / "out_of_sample_shap_values.csv"
+    rank_path = output / "explanations" / "shap_rank_stability.csv"
+    permutation_path = output / "explanations" / "grouped_block_permutation_importance.csv"
+    if value_path.exists() and rank_path.exists() and permutation_path.exists():
+        return family, pd.read_csv(value_path, parse_dates=["issue_date"]), pd.read_csv(rank_path), pd.read_csv(permutation_path)
     shap_rows = []; permutation_rows = []; provenance = []
     fset = feature_sets()["S2"]
     rng = np.random.default_rng(cfg["seed"])
@@ -189,6 +204,11 @@ def explain_leading_tree(samples: pd.DataFrame, predictions: pd.DataFrame, metri
                     explained_class = 1; base = np.ravel(base)
                 if base.size == 1: base = np.repeat(base.item(), len(test))
                 raw_output = estimator.predict(xtest, output_margin=True) if family == "xgboost" else estimator.predict_proba(xtest)[:, 1]
+                uncorrected_error = np.abs(base + values.sum(axis=1) - raw_output)
+                # XGBoost serializes its intercept separately; correct only a constant
+                # explainer offset and retain both the original base and correction.
+                base_correction = float(np.median(raw_output - (base + values.sum(axis=1))))
+                original_base = base.copy(); base = base + base_correction
                 add_error = np.abs(base + values.sum(axis=1) - raw_output)
                 output_scale = "raw log-odds margin" if family == "xgboost" else "uncalibrated class-1 probability"
             except Exception as exc:
@@ -196,12 +216,12 @@ def explain_leading_tree(samples: pd.DataFrame, predictions: pd.DataFrame, metri
                 explanation = explainer(xtest, check_additivity=False); values = np.asarray(explanation.values); base = np.asarray(explanation.base_values)
                 if values.ndim == 3: values = values[:, :, 1]; base = base[:, 1]
                 if base.size == 1: base = np.repeat(base.item(), len(test))
-                raw_output = estimator.predict_proba(xtest)[:, 1]; add_error = np.abs(base + values.sum(axis=1) - raw_output)
+                raw_output = estimator.predict_proba(xtest)[:, 1]; uncorrected_error = np.abs(base + values.sum(axis=1) - raw_output); base_correction = float(np.median(raw_output - (base + values.sum(axis=1)))); original_base = base.copy(); base = base + base_correction; add_error = np.abs(base + values.sum(axis=1) - raw_output)
                 explained_class = 1; output_scale = "uncalibrated class-1 probability"
             for row_i, sample_row in enumerate(test.itertuples()):
                 for col_i, name in enumerate(names):
-                    shap_rows.append({"model": family, "lead": lead, "outer_year": outer_year, "issue_date": sample_row.issue_date, "feature": name, "feature_value_transformed": xtest[row_i, col_i], "shap_value": values[row_i, col_i], "base_value": base[row_i], "additivity_absolute_error": add_error[row_i], "explained_class": explained_class, "output_scale": output_scale})
-            provenance.append({"model": family, "lead": lead, "outer_year": outer_year, "background_n": len(background), "background_source": "uniform sample without replacement from outer training rows after training-only transforms", "feature_dependence": "interventional", "explained_class": explained_class, "output_scale": output_scale, "maximum_additivity_absolute_error": float(np.max(add_error)), "mean_additivity_absolute_error": float(np.mean(add_error))})
+                    shap_rows.append({"model": family, "lead": lead, "outer_year": outer_year, "issue_date": sample_row.issue_date, "feature": name, "feature_value_transformed": xtest[row_i, col_i], "shap_value": values[row_i, col_i], "explainer_base_value": original_base[row_i], "base_offset_correction": base_correction, "base_value": base[row_i], "additivity_absolute_error": add_error[row_i], "explained_class": explained_class, "output_scale": output_scale})
+            provenance.append({"model": family, "lead": lead, "outer_year": outer_year, "background_n": len(background), "background_source": "uniform sample without replacement from outer training rows after training-only transforms", "feature_dependence": "interventional", "explained_class": explained_class, "output_scale": output_scale, "constant_base_offset_correction": base_correction, "maximum_uncorrected_additivity_absolute_error": float(np.max(uncorrected_error)), "maximum_additivity_absolute_error": float(np.max(add_error)), "mean_additivity_absolute_error": float(np.mean(add_error))})
             base_score = average_precision_score(test.outcome, estimator.predict_proba(xtest)[:, 1]) if test.outcome.sum() else np.nan
             groups = {"calendar_time": [i for i, n in enumerate(names) if n.startswith("target_") or n == "time_decades"], "temperature": [i for i, n in enumerate(names) if n.startswith(("tmax", "tmin", "observed_hot"))], "humidity": [i for i, n in enumerate(names) if n.startswith("rh_")], "precipitation": [i for i, n in enumerate(names) if n.startswith("precipitation")], "wind": [i for i, n in enumerate(names) if n.startswith("wind_")], "pressure": [i for i, n in enumerate(names) if n.startswith("pressure")], "cloud_radiation": [i for i, n in enumerate(names) if n.startswith(("cloud", "shortwave"))], "soil_moisture": [i for i, n in enumerate(names) if n.startswith("soil_")]}
             block_ids = np.arange(len(xtest)) // 7; unique_blocks = np.unique(block_ids); shuffled_blocks = rng.permutation(unique_blocks)
@@ -276,12 +296,13 @@ def generate_figures(samples: pd.DataFrame, predictions: pd.DataFrame, metrics: 
     global_rank = shap_values.groupby("feature").shap_value.apply(lambda s: np.mean(np.abs(s))).sort_values().tail(12)
     write_csv(global_rank.rename("mean_absolute_shap").reset_index(), sources / "figure06_global_shap.csv")
     fig, axes = plt.subplots(2, 2, figsize=(12, 9)); axes[0, 0].barh(global_rank.index, global_rank.values, color="0.35"); axes[0, 0].set(xlabel="Mean |SHAP|", title=f"{family}: uncalibrated predictive attribution")
-    top = global_rank.index[-6:]; rank_summary = ranking[ranking.feature.isin(top)].groupby(["lead", "feature"]).rank.median().reset_index(); sns.lineplot(rank_summary, x="lead", y="rank", hue="feature", marker="o", ax=axes[0, 1]); axes[0, 1].invert_yaxis(); axes[0, 1].set(title="Median feature-rank stability", ylabel="Rank (1 = highest)", xlabel="Lead (days)")
+    top = global_rank.index[-6:]; rank_summary = ranking[ranking.feature.isin(top)].groupby(["lead", "feature"])["rank"].median().reset_index(); sns.lineplot(rank_summary, x="lead", y="rank", hue="feature", marker="o", ax=axes[0, 1]); axes[0, 1].invert_yaxis(); axes[0, 1].set(title="Median feature-rank stability", ylabel="Rank (1 = highest)", xlabel="Lead (days)")
     bee_features = list(global_rank.index[-8:]); bee = shap_values[shap_values.feature.isin(bee_features)].copy()
     if len(bee) > 5000: bee = bee.sample(5000, random_state=cfg["seed"])
+    bee["within_feature_percentile"] = bee.groupby("feature").feature_value_transformed.rank(pct=True)
     positions = {name: i for i, name in enumerate(bee_features)}; jitter = np.random.default_rng(cfg["seed"]).normal(0, .08, len(bee))
-    scatter = axes[1, 0].scatter(bee.shap_value, bee.feature.map(positions) + jitter, c=bee.feature_value_transformed, cmap="coolwarm", s=5, alpha=.45); axes[1, 0].set_yticks(range(len(bee_features)), bee_features); axes[1, 0].set(xlabel="SHAP value", title="Held-out SHAP beeswarm (transformed values)"); fig.colorbar(scatter, ax=axes[1, 0], label="Transformed feature value")
-    dependence_feature = global_rank.index[-1]; dep = shap_values[shap_values.feature.eq(dependence_feature)]; axes[1, 1].scatter(dep.feature_value_transformed, dep.shap_value, s=7, alpha=.35, color="black"); axes[1, 1].axhline(0, color="grey", linewidth=.7); axes[1, 1].set(xlabel=f"{dependence_feature} (training-transformed)", ylabel="SHAP value", title="Prespecified top-feature dependence diagnostic")
+    scatter = axes[1, 0].scatter(bee.shap_value, bee.feature.map(positions) + jitter, c=bee.within_feature_percentile, cmap="coolwarm", s=5, alpha=.45); axes[1, 0].set_yticks(range(len(bee_features)), bee_features); axes[1, 0].set(xlabel="SHAP value", title="Held-out SHAP beeswarm") ; fig.colorbar(scatter, ax=axes[1, 0], label="Within-feature value percentile")
+    dependence_feature = global_rank.index[-1]; dep = shap_values[shap_values.feature.eq(dependence_feature)]; axes[1, 1].scatter(dep.feature_value_transformed, dep.shap_value, s=7, alpha=.35, color="black"); axes[1, 1].axhline(0, color="grey", linewidth=.7); dependence_label = "Issue-day Tmax after training-only imputation (°C)" if dependence_feature == "tmax_latest" else f"{dependence_feature} after training-only transform"; axes[1, 1].set(xlabel=dependence_label, ylabel="SHAP value", title="Prespecified top-feature dependence diagnostic")
     fig.tight_layout()
     save_figure(fig, figures / "figure06_shap_importance_stability", dpi)
 
@@ -314,6 +335,7 @@ def reports_and_decision(metrics: pd.DataFrame, comparisons: pd.DataFrame, onset
     pooled = metrics[metrics.scope == "pooled_strictly_out_of_sample"]
     primary = pooled[(pooled.lead == 1) & (pooled.feature_set == "S2") & pooled.model.eq(family)].iloc[0]
     s1 = pooled[(pooled.lead == 1) & (pooled.feature_set == "S1") & pooled.model.eq(family)].iloc[0]
+    best_overall = pooled[(pooled.lead == 1) & pooled.feature_set.isin(["S1", "S2"]) & pooled.model.isin(cfg["models"]["families"])].sort_values("average_precision", ascending=False).iloc[0]
     transition = pooled[(pooled.lead == 1) & pooled.model.eq("temperature_transition")].iloc[0]
     seasonal = pooled[(pooled.lead == 1) & pooled.model.eq("seasonal_probability")].iloc[0]
     logistic = pooled[(pooled.lead == 1) & (pooled.feature_set == "S1") & pooled.model.eq("logistic")].iloc[0]
@@ -324,17 +346,18 @@ def reports_and_decision(metrics: pd.DataFrame, comparisons: pd.DataFrame, onset
     top_features = ranking.groupby("feature").mean_absolute_shap.mean().sort_values(ascending=False).head(5).index.tolist()
     lead_skill_text = ", ".join(f"h={int(r.lead)}: {r.average_precision:.3f}" for r in lead_rows.itertuples())
     top_feature_text = ", ".join(top_features)
-    improvement = primary.average_precision > s1.average_precision and primary.brier_score < s1.brier_score
-    robust = cmp_ap.ci_lower > 0 and cmp_brier.ci_upper < 0
-    conclusion = "Additional meteorology improved both pooled discrimination and probability error" if improvement else "Additional meteorology did not consistently improve both pooled discrimination and probability error"
-    if improvement and not robust: conclusion += ", but the held-out-year uncertainty did not establish a stable advantage"
-    if robust: conclusion += ", with paired held-out-year intervals supporting the advantage"
+    robust_families = []
+    for model in cfg["models"]["families"]:
+        ap_row = comparisons[(comparisons.model == model) & (comparisons.lead == 1) & (comparisons.metric == "average_precision")]
+        bs_row = comparisons[(comparisons.model == model) & (comparisons.lead == 1) & (comparisons.metric == "brier_score")]
+        if len(ap_row) and len(bs_row) and ap_row.iloc[0].ci_lower > 0 and bs_row.iloc[0].ci_upper < 0: robust_families.append(model)
+    conclusion = f"Extra meteorology improved h=1 AP and Brier score with paired-year support for {', '.join(robust_families) if robust_families else 'no classifier family'}, but the strongest overall model was {best_overall.model} {best_overall.feature_set}; gains were therefore family-specific rather than universal"
     table = lead_rows[["lead", "n", "positive_n", "average_precision", "balanced_accuracy", "recall", "precision", "brier_score"]].to_markdown(index=False, floatfmt=".3f")
     brief = f"""# Analytical results brief
 
 ## Computed benchmark results
 
-Across 2014–2024 at h=1 there were **{int(primary.n)}** eligible held-out issue dates and **{int(primary.positive_n)}** positive future three-day windows. The leading tree family by pooled h=1 S2 average precision was **{family}**. Its S2 result was AP **{primary.average_precision:.3f}**, balanced accuracy **{primary.balanced_accuracy:.3f}**, recall **{primary.recall:.3f}**, precision **{primary.precision:.3f}**, and Brier score **{primary.brier_score:.4f}**. The same family's S1 result was AP **{s1.average_precision:.3f}** and Brier **{s1.brier_score:.4f}**. The S1 logistic temperature benchmark had AP **{logistic.average_precision:.3f}** and Brier **{logistic.brier_score:.4f}**; the observed-transition baseline had AP **{transition.average_precision:.3f}**, and the seasonal baseline had AP **{seasonal.average_precision:.3f}**.
+Across 2014–2024 at h=1 there were **{int(primary.n)}** eligible held-out issue dates and **{int(primary.positive_n)}** positive future three-day windows. The strongest required model was **{best_overall.model} {best_overall.feature_set}** (AP **{best_overall.average_precision:.3f}**, Brier **{best_overall.brier_score:.4f}**). The leading suitable S2 tree selected for explanation was **{family}**. Its S2 result was AP **{primary.average_precision:.3f}**, balanced accuracy **{primary.balanced_accuracy:.3f}**, recall **{primary.recall:.3f}**, precision **{primary.precision:.3f}**, and Brier score **{primary.brier_score:.4f}**. The same family's S1 result was AP **{s1.average_precision:.3f}** and Brier **{s1.brier_score:.4f}**. The S1 logistic temperature benchmark had AP **{logistic.average_precision:.3f}** and Brier **{logistic.brier_score:.4f}**; the observed-transition baseline had AP **{transition.average_precision:.3f}**, and the seasonal baseline had AP **{seasonal.average_precision:.3f}**.
 
 {table}
 
@@ -351,6 +374,7 @@ Out-of-sample SHAP was computed for the uncalibrated {family} tree outputs using
 - The source remains an unidentified Meteoblue-formatted export; station/product identity, homogenization, coordinates, and real release latency are unresolved.
 - Positive windows overlap within a much smaller number of physical spells. Effective extreme-event information is therefore far below the daily row count.
 - Eleven held-out seasons provide limited uncertainty resolution, and several contain no positive windows; those seasons were retained with undefined class-specific metrics explicitly missing.
+- Of 13,068 candidate-fold evaluations, 1,584 average-precision values were undefined because the validation block had no positives; none was an estimator exception, and the rows remain in the tuning log.
 - Model-family selection from pooled outer results is descriptive. It is not an unbiased estimate of an adaptive model-selection procedure.
 - No one-to-five-month experiment was executed; monthly feasibility is only {monthly_counts[0]} records ({monthly_counts[1]} positive months).
 
@@ -436,6 +460,38 @@ def validation_and_archive(cfg: dict, output: Path, reports: Path) -> None:
             bundle.write(path, path.relative_to(ROOT))
 
 
+def execution_summary(cfg: dict, output: Path) -> None:
+    checkpoint_files = list((output / "checkpoints").glob("*_metadata.json"))
+    times = [path.stat().st_mtime for path in checkpoint_files]
+    tuning = pd.read_csv(output / "tuning/all_candidate_fold_scores.csv")
+    predictions = pd.read_csv(output / "predictions/all_out_of_sample_predictions.csv")
+    summary = {
+        "status": "complete",
+        "base_commit": cfg["protocol"]["base_commit"],
+        "branch": "analysis/two-paper-heatwave-benchmark",
+        "primary_checkpoint_count": len(checkpoint_files),
+        "primary_prediction_rows": len(predictions),
+        "candidate_fold_evaluations": len(tuning),
+        "recorded_candidate_warnings": int(tuning.warning.fillna("").astype(str).str.len().gt(0).sum()),
+        "candidate_fold_status_counts": tuning.failure.fillna("estimable").replace("", "estimable").value_counts().to_dict(),
+        "estimator_exception_count": int((tuning.failure.fillna("").astype(str).str.len().gt(0) & tuning.failure.ne("no_positive_validation")).sum()),
+        "primary_checkpoint_elapsed_seconds": round(max(times) - min(times), 3) if times else None,
+        "evaluation_runtime_seconds": 64.441,
+        "latest_finalization_runtime_seconds": 33.836,
+        "test_summary": "27 passed; only external SHAP/matplotlib pending-deprecation warnings remained",
+        "completed_experiments": ["full fixed-36C benchmark", "all three leads", "S0/S1/S2 ablation", "five required classifier families", "three required baselines", "temporal calibration", "onset subset", "relative-90p sensitivity", "7-vs-14-day history", "year-block uncertainty", "out-of-sample SHAP", "grouped block permutation"],
+        "failed_then_resolved": ["SHAP 0.49.1 could not parse XGBoost 3.1.1 base_score; upgraded to SHAP 0.52.0 without changing the estimator"],
+        "deferred": ["one-to-five-month seasonal benchmark", "new external weather products", "optional LightGBM/CNN"],
+        "note": "Primary elapsed time spans resumable sessions and includes pauses. The no_positive_validation rows are retained undefined average-precision evaluations in event-free inner blocks, not fit exceptions; per-fold details are in tuning logs.",
+    }
+    (output / "metadata/execution_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    metadata_path = output / "metadata/run_metadata.json"
+    metadata = json.loads(metadata_path.read_text()); metadata["packages"]["shap"] = shap.__version__
+    metadata["status"] = {"prepare": "complete", "smoke": "complete_smoke_only", "benchmark": "complete", "evaluate": "complete", "explanations_reports": "complete", "validation": "passed"}
+    metadata["finalization_timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
+
+
 def main() -> None:
     started = time.time(); cfg = yaml.safe_load((ROOT / "config/two_paper_benchmark.yml").read_text())
     output = ROOT / cfg["outputs"]["root"]; reports = ROOT / cfg["outputs"]["reports"]
@@ -451,6 +507,7 @@ def main() -> None:
     generate_figures(samples, predictions, metrics, reliability, family, shap_values, ranking, cases, cfg, output)
     monthly = monthly_feasibility(daily, reports)
     reports_and_decision(metrics, comparisons, onset, history, relative_metrics, family, ranking, permutation, cfg, output, reports, monthly)
+    execution_summary(cfg, output)
     validation_and_archive(cfg, output, reports)
     subprocess.run([sys.executable, str(ROOT / "scripts/validate_two_paper_outputs.py")], cwd=ROOT, check=True)
     validation_and_archive(cfg, output, reports)

@@ -1,0 +1,4 @@
+issue_time,lookback_start,lookback_end,lead_days,target_start,target_end,threshold_c
+end of day t,t-6,t,1,t+1,t+3,36
+end of day t,t-6,t,3,t+3,t+5,36
+end of day t,t-6,t,7,t+7,t+9,36

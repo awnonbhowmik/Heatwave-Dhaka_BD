@@ -1,0 +1,4 @@
+model,feature_set,outer_fold,issue_date,feature_start,feature_end,target_start,target_end,label_available_date,lead,outcome,associated_event_id,raw_score,probability,threshold,predicted_class,calibration,case_type,selection_rule
+xgboost,S2,2014,2014-04-19,2014-04-13,2014-04-19,2014-04-20,2014-04-22,2014-04-22,1,1,fixed36_0035,0.5016704202,0.08856823816,0.02354311311,1,temporal_sigmoid,true_positive,earliest chronological true positive among held-out h=1 S2 predictions
+xgboost,S2,2014,2014-05-12,2014-05-06,2014-05-12,2014-05-13,2014-05-15,2014-05-15,1,1,fixed36_0036,0.03259341419,0.009936517774,0.02354311311,0,temporal_sigmoid,missed_positive,earliest chronological missed positive among held-out h=1 S2 predictions
+xgboost,S2,2014,2014-03-28,2014-03-22,2014-03-28,2014-03-29,2014-03-31,2014-03-31,1,0,,0.3543351293,0.06084174354,0.02354311311,1,temporal_sigmoid,false_alarm,earliest chronological false alarm among held-out h=1 S2 predictions

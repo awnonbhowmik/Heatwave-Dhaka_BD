@@ -169,3 +169,4 @@ __pycache__/
 .coverage
 .DS_Store
 results/**/*.tmp
+results/two_paper_benchmark/checkpoints/

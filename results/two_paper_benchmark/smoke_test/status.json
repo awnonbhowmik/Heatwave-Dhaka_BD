@@ -1,0 +1,39 @@
+{
+  "status": "smoke_only_not_full_analysis",
+  "outer_year": 2024,
+  "lead": 1,
+  "candidates": 2,
+  "metadata": {
+    "status": "fit",
+    "selected_parameters": {
+      "model__l1_ratio": 0.75,
+      "model__C": 0.3
+    },
+    "calibration": "temporal_sigmoid",
+    "selected_threshold": 0.017639530435913063,
+    "selected_inner_average_precision": 0.47579981123693516,
+    "retained_features": [
+      "target_sin1",
+      "target_cos1",
+      "target_sin2",
+      "time_decades",
+      "tmax_latest",
+      "tmin_latest",
+      "tmax_mean3",
+      "tmin_mean3",
+      "tmax_mean7",
+      "tmin_mean7",
+      "tmax_sd7",
+      "tmin_sd7",
+      "tmax_trend7",
+      "tmin_trend7",
+      "observed_hot_run_length"
+    ],
+    "dropped_redundant_features": [
+      "target_cos2"
+    ],
+    "final_warnings": [
+      "ConvergenceWarning: The max_iter was reached which means the coef_ did not converge"
+    ]
+  }
+}

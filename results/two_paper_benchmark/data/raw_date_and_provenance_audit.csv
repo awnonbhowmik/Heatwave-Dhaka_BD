@@ -1,0 +1,8 @@
+quantity,value
+raw_rows,19316
+unique_dates,19316
+duplicate_dates,0
+missing_calendar_dates,0
+earliest_date,1972-01-01
+latest_date,2024-11-18
+unresolved_air_temperature_source,Meteoblue-formatted export; station/product identity unresolved
