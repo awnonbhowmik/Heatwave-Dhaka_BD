@@ -448,7 +448,8 @@ def validation_and_archive(cfg: dict, output: Path, reports: Path) -> None:
     write_csv(separation, output / "sensitivities" / "conservative_full_window_separation.csv")
     inventory = []
     for path in sorted(output.rglob("*")):
-        if path.is_file() and path.name != "two_paper_benchmark_review.zip": inventory.append({"path": str(path.relative_to(ROOT)), "bytes": path.stat().st_size, "sha256": file_hash(path)})
+        if path.is_file() and path.name not in {"two_paper_benchmark_review.zip", "output_inventory_and_hashes.csv"} and "checkpoints" not in path.parts:
+            inventory.append({"path": str(path.relative_to(ROOT)), "bytes": path.stat().st_size, "sha256": file_hash(path)})
     write_csv(pd.DataFrame(inventory), output / "metadata" / "output_inventory_and_hashes.csv")
     archive = output / "two_paper_benchmark_review.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
