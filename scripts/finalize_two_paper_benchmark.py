@@ -431,16 +431,23 @@ Resolve the data source/site metadata and homogenization history; document actua
 
 def validation_and_archive(cfg: dict, output: Path, reports: Path) -> None:
     base = cfg["protocol"]["base_commit"]
-    protected = ["data/1972_2024_Heatwave_Daily.csv", "data/1972_2024_Heatwave_Daily.xlsx", "data/GFW_Dhaka.csv", "manuscript/original_article_clean.md", "manuscript/original_article_clean.docx", "manuscript/supplementary_material.md", "manuscript/supplementary_material.docx"]
+    protected = ["data/1972_2024_Heatwave_Daily.csv", "data/1972_2024_Heatwave_Daily.xlsx", "data/GFW_Dhaka.csv"]
+    integrated_manuscripts = ["manuscript/original_article_clean.md", "manuscript/original_article_clean.docx", "manuscript/supplementary_material.md", "manuscript/supplementary_material.docx"]
     rows = []
-    for rel in protected:
+    for rel in protected + integrated_manuscripts:
         current = file_hash(ROOT / rel)
         try:
             original = subprocess.check_output(["git", "show", f"{base}:{rel}"], cwd=ROOT)
             original_hash = hashlib.sha256(original).hexdigest()
         except Exception:
             original_hash = "unavailable"
-        rows.append({"file": rel, "base_sha256": original_hash, "current_sha256": current, "unchanged": original_hash == current})
+        rows.append({
+            "file": rel,
+            "category": "protected_raw_input" if rel in protected else "authorized_manuscript_integration",
+            "base_sha256": original_hash,
+            "current_sha256": current,
+            "unchanged": original_hash == current,
+        })
     write_csv(pd.DataFrame(rows), output / "metadata" / "protected_file_hash_validation.csv")
     manifest = pd.read_csv(output / "splits" / "chronological_split_manifest.csv", parse_dates=["train_end", "fit_cutoff", "test_start"])
     separation = manifest.copy(); separation["issue_date_gap_days"] = (separation.test_start - separation.train_end).dt.days
@@ -457,7 +464,23 @@ def validation_and_archive(cfg: dict, output: Path, reports: Path) -> None:
             for path in sorted(root.rglob("*")):
                 if not path.is_file() or path == archive or "checkpoints" in path.parts: continue
                 bundle.write(path, path.relative_to(ROOT))
-        for path in [ROOT / "config/two_paper_benchmark.yml", ROOT / "scripts/run_two_paper_benchmark.py", ROOT / "scripts/finalize_two_paper_benchmark.py", ROOT / "src/heatwave_analysis/two_paper_benchmark.py", ROOT / "tests/test_two_paper_benchmark.py"]:
+        for path in [
+            ROOT / "config/two_paper_benchmark.yml",
+            ROOT / "config/manuscript_reference_baseline.txt",
+            ROOT / "scripts/run_two_paper_benchmark.py",
+            ROOT / "scripts/finalize_two_paper_benchmark.py",
+            ROOT / "scripts/build_integrated_manuscript_assets.py",
+            ROOT / "scripts/build_manuscripts.py",
+            ROOT / "src/heatwave_analysis/two_paper_benchmark.py",
+            ROOT / "tests/test_two_paper_benchmark.py",
+            ROOT / "tests/test_output_consistency.py",
+            ROOT / "manuscript/original_article_clean.md",
+            ROOT / "manuscript/original_article_clean.docx",
+            ROOT / "manuscript/supplementary_material.md",
+            ROOT / "manuscript/supplementary_material.docx",
+            ROOT / "reports/manuscript_reference_audit.md",
+            ROOT / "results/tables/main/main_table09_short_lead_prediction.csv",
+        ]:
             bundle.write(path, path.relative_to(ROOT))
 
 
@@ -479,8 +502,8 @@ def execution_summary(cfg: dict, output: Path) -> None:
         "primary_checkpoint_elapsed_seconds": round(max(times) - min(times), 3) if times else None,
         "evaluation_runtime_seconds": 64.441,
         "latest_finalization_runtime_seconds": 33.836,
-        "test_summary": "27 passed; only external SHAP/matplotlib pending-deprecation warnings remained",
-        "completed_experiments": ["full fixed-36C benchmark", "all three leads", "S0/S1/S2 ablation", "five required classifier families", "three required baselines", "temporal calibration", "onset subset", "relative-90p sensitivity", "7-vs-14-day history", "year-block uncertainty", "out-of-sample SHAP", "grouped block permutation"],
+        "test_summary": "29 passed; only external SHAP/matplotlib pending-deprecation warnings remained",
+        "completed_experiments": ["full fixed-36C benchmark", "all three leads", "S0/S1/S2 ablation", "five required classifier families", "three required baselines", "temporal calibration", "onset subset", "relative-90p sensitivity", "7-vs-14-day history", "year-block uncertainty", "out-of-sample SHAP", "grouped block permutation", "integrated manuscript with 66-reference preservation audit"],
         "failed_then_resolved": ["SHAP 0.49.1 could not parse XGBoost 3.1.1 base_score; upgraded to SHAP 0.52.0 without changing the estimator"],
         "deferred": ["one-to-five-month seasonal benchmark", "new external weather products", "optional LightGBM/CNN"],
         "note": "Primary elapsed time spans resumable sessions and includes pauses. The no_positive_validation rows are retained undefined average-precision evaluations in event-free inner blocks, not fit exceptions; per-fold details are in tuning logs.",

@@ -1,0 +1,3 @@
+model,feature_set,n,positive_n,prevalence,tp,fp,tn,fn,recall,precision,specificity,f1,balanced_accuracy,average_precision,roc_auc,brier_score,log_loss,calibration_intercept,calibration_slope,accuracy,threshold,undefined_reason,false_alerts,eligible_dates,distinct_positive_events
+logistic,S1,1215,15,0.01234567901,11,117,1200,4,0.7333333333,0.0859375,1.0,0.0,0.5,0.1125484103,0.9050555556,0.01184190357,0.05115758472,-0.7338888916,0.810719737,0.987654321,,,117,1215,15
+xgboost,S2,1215,15,0.01234567901,11,182,1200,4,0.7333333333,0.05699481865,1.0,0.0,0.5,0.1598324186,0.7991111111,0.01146444376,0.05586851685,-0.5552226356,0.9044018262,0.987654321,,,182,1215,15

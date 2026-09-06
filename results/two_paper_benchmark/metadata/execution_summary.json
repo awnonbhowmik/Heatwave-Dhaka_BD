@@ -14,7 +14,7 @@
   "primary_checkpoint_elapsed_seconds": 20834.949,
   "evaluation_runtime_seconds": 64.441,
   "latest_finalization_runtime_seconds": 33.836,
-  "test_summary": "27 passed; only external SHAP/matplotlib pending-deprecation warnings remained",
+  "test_summary": "29 passed; only external SHAP/matplotlib pending-deprecation warnings remained",
   "completed_experiments": [
     "full fixed-36C benchmark",
     "all three leads",
@@ -27,7 +27,8 @@
     "7-vs-14-day history",
     "year-block uncertainty",
     "out-of-sample SHAP",
-    "grouped block permutation"
+    "grouped block permutation",
+    "integrated manuscript with 66-reference preservation audit"
   ],
   "failed_then_resolved": [
     "SHAP 0.49.1 could not parse XGBoost 3.1.1 base_score; upgraded to SHAP 0.52.0 without changing the estimator"

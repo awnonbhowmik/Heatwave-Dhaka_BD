@@ -1,6 +1,6 @@
 # Supplementary material
 
-## Long-Term Warming and Definition-Dependent Heatwaves in Dhaka, Bangladesh: Count Trends and Antecedent Meteorological Associations, 1972–2024
+## Long-Term Warming, Definition-Dependent Heatwaves, and Short-Lead Persistent-Hot-Window Prediction in Dhaka, Bangladesh, 1972–2024
 
 **Provisional title—professor and coauthor approval required**
 
@@ -52,7 +52,7 @@ Climatology-plus-trend 80% and 95% coverages were 0.675 and 0.875 with mean widt
 
 ## S8 Analyses not retained as article evidence
 
-The legacy tree-cover correlation was not spatially matched to the meteorological series and changed sign after detrending; it is not used to infer causation. Legacy heat-index calculations paired daily \(T_{\max}\) with daily mean humidity rather than simultaneous observations; they are not used as physiological exposure. Monthly mean-temperature forecasts cannot be transformed into persistent daily events. Direct 2025–2029 count simulations therefore remain repository diagnostics and are not reported as forecasts in the article.
+The legacy tree-cover correlation used Global Forest Watch data (Global Forest Watch, 2024) that were not spatially matched to the meteorological series and changed sign after detrending; it is not used to infer causation. Legacy heat-index calculations used the Rothfusz formulation (Rothfusz, 1990) but paired daily \(T_{\max}\) with daily mean humidity rather than simultaneous observations; they are not used as physiological exposure. A legacy augmented Dickey–Fuller test (Dickey & Fuller, 1979) did not resolve the modeling questions addressed here, and the prior long short-term memory experiment (Hochreiter & Schmidhuber, 1997) was not retained because it smoothed hot extremes and did not support the prespecified prediction target. Monthly mean-temperature forecasts cannot be transformed into persistent daily events. Direct 2025–2029 count simulations therefore remain repository diagnostics and are not reported as forecasts in the article.
 
 ## S9 Reproducibility files
 
@@ -64,3 +64,19 @@ The legacy tree-cover correlation was not spatially matched to the meteorologica
 - Reproducibility audit: `reports/original_article_reproducibility_audit.md`
 - Claim matrix: `reports/claim_to_evidence_matrix.csv`
 - Exact reproduction command: `make article`
+
+## S10 Future persistent-hot-window benchmark
+
+The prediction benchmark used issue-day measurements and the preceding six dates to predict a three-day window beginning one, three, or seven days later. All three target dates had to remain within March–June and have observed \(T_{\max}\). Sample provenance retained issue date, feature start and end, target start and end, label-availability date, lead, outcome, and associated event identifier. Lags were constructed on the continuous calendar before seasonal restriction, permitting February history for early-March issue dates.
+
+Outer folds held out complete seasons from 2014–2024. Every learned preprocessing, hyperparameter, probability-calibration, and threshold-selection step used only data available before the outer test season. Event-free seasons were retained. Supplementary Table S3 gives paired held-out-year S2-minus-S1 comparisons for every family and lead; Supplementary Table S4 reports the onset-risk subset; Supplementary Table S5 compares seven- and fourteen-day history; and Supplementary Table S6 records SHAP background and additivity checks.
+
+The 56 positive held-out windows arose from fewer physical hot spells and were therefore not treated as 56 independent extremes. Complete-year bootstrap resampling retained their within-season clustering, but eleven test seasons still provide limited uncertainty resolution. The relative 90th-percentile sensitivity recomputed calendar-day thresholds using only the training cutoff. All detailed predictions, candidate-fold outcomes, calibration data, relative-target results, grouped permutations, and feature-level SHAP values are stored under `results/two_paper_benchmark/`.
+
+**Supplementary Figure S3. Prediction timing contract.** Seven-day observed history, issue time, direct lead, three-day target interval, and label-availability timing.
+
+**Supplementary Figure S4. Class balance and issue-day temperature.** Held-out prevalence by season and lead, retaining event-free seasons, and the observed-temperature distribution by outcome.
+
+**Supplementary Figure S5. Predictor relationships.** Spearman correlations before high-correlation filtering. These relationships informed redundancy screening but do not estimate independent or causal effects.
+
+**Supplementary Figure S6. Held-out episode timeline.** XGBoost S2 probabilities, observed positive windows, and selected examples of true alerts, misses, and false alerts at one-day lead.

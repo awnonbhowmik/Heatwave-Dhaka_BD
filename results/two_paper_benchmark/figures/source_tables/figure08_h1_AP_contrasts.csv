@@ -1,0 +1,6 @@
+model,lead,metric,contrast,observed_difference,ci_lower,ci_upper,bootstrap_draws,defined_draws,undefined_draws,resampling_unit,order
+logistic,1,average_precision,S2_minus_S1,-0.07724898877,-0.167890529,-0.0164644203,2000,1997,3,complete_held_out_year,0
+weighted_svc,1,average_precision,S2_minus_S1,-0.05680742701,-0.2371064489,0.1813366189,2000,1998,2,complete_held_out_year,1
+balanced_rf,1,average_precision,S2_minus_S1,0.09222505487,-0.02908941648,0.1843345675,2000,1999,1,complete_held_out_year,2
+weighted_rf,1,average_precision,S2_minus_S1,0.1070542048,0.03525593937,0.1724756695,2000,1997,3,complete_held_out_year,3
+xgboost,1,average_precision,S2_minus_S1,0.1383927174,0.01221402787,0.1881215587,2000,1996,4,complete_held_out_year,4

@@ -37,11 +37,19 @@
       "maximum_absolute_error": 2.015847713e-06
     },
     {
-      "check": "raw_data_and_manuscripts_unchanged",
+      "check": "raw_data_unchanged",
+      "passed": true
+    },
+    {
+      "check": "manuscript_integration_recorded",
       "passed": true
     },
     {
       "check": "seven_png_and_vector_figures",
+      "passed": true
+    },
+    {
+      "check": "integrated_manuscript_figures",
       "passed": true
     },
     {

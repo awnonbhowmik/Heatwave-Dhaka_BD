@@ -1,6 +1,6 @@
 {
   "status": "complete",
-  "runtime_seconds": 24.613,
+  "runtime_seconds": 23.76,
   "leading_explained_tree": "xgboost",
   "completed": [
     "history sensitivity",

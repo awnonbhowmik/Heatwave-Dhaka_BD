@@ -1,4 +1,4 @@
-.PHONY: analysis two-paper-benchmark test validate validate-two-paper notebooks manuscripts article clean-results
+.PHONY: analysis two-paper-benchmark test validate validate-two-paper notebooks manuscript-assets manuscripts article clean-results
 
 PYTHON ?= .venv/bin/python
 
@@ -20,10 +20,13 @@ validate-two-paper:
 notebooks:
 	MPLCONFIGDIR=/tmp/heatwave-mpl IPYTHONDIR=/tmp/heatwave-ipython JUPYTER_RUNTIME_DIR=/tmp/heatwave-jupyter $(PYTHON) scripts/execute_notebooks.py
 
-manuscripts:
+manuscript-assets:
+	$(PYTHON) scripts/build_integrated_manuscript_assets.py
+
+manuscripts: manuscript-assets
 	$(PYTHON) scripts/build_manuscripts.py
 
-article: analysis test notebooks manuscripts validate
+article: analysis two-paper-benchmark test notebooks manuscripts validate validate-two-paper
 
 clean-results:
 	@echo "Generated outputs are versioned; remove them only with explicit review."

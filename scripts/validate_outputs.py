@@ -32,12 +32,21 @@ def main(config_path):
         "main_table06_primary_count_model.csv",
         "main_table07_adjusted_associations.csv",
         "main_table08_blocked_validation.csv",
+        "main_table09_short_lead_prediction.csv",
     ]
     for name in required_main_tables:
         assert (out/"tables"/name).exists(),f"Missing original-article table: {name}"
         assert (out/"tables"/"main"/name).exists(),f"Missing organized main table: {name}"
     assert len(list((out/"figures"/"main").glob("figure*.png")))==7
     assert len(list((out/"figures"/"main").glob("figure*.pdf")))==7
+    benchmark_figures=ROOT/"results"/"two_paper_benchmark"/"figures"
+    for name in [
+        "figure08_manuscript_primary_prediction",
+        "figure09_manuscript_prediction_diagnostics",
+        "figure06_shap_importance_stability",
+    ]:
+        assert (benchmark_figures/f"{name}.png").exists(),f"Missing integrated manuscript figure: {name}.png"
+        assert (benchmark_figures/f"{name}.pdf").exists(),f"Missing integrated manuscript figure: {name}.pdf"
     assert len(list((out/"figures"/"supplement").glob("figureS*.png")))>=2
     future=pd.read_csv(out/"tables"/"table20_future_temperature_projections.csv")
     assert (future.ci_lower<=future.mean_tmax).all() and (future.mean_tmax<=future.ci_upper).all()
@@ -56,6 +65,9 @@ def main(config_path):
     manuscript=(ROOT/"manuscript"/"original_article_clean.md").read_text()
     assert "\\(q=0.126\\)" in manuscript
     assert "systematic underprediction" in manuscript
+    assert "### 3.9 Future persistent-hot-window prediction" in manuscript
+    references=[entry for entry in manuscript.split("## References\n",1)[1].split("\n\n") if entry.strip()]
+    assert len(references)==66,f"Expected 66 preserved-and-augmented references, found {len(references)}"
     required_docs=[
         "original_article_clean.docx",
         "original_article_updates_highlighted_yellow.docx",
@@ -68,11 +80,13 @@ def main(config_path):
             xml=archive.read("word/document.xml").decode("utf-8")
             assert "Long-Term Warming" in xml
             assert "w:tbl" in xml
+            if name != "supplementary_material.docx":
+                assert "Figure 10." in xml
     highlighted=ROOT/"manuscript"/"original_article_updates_highlighted_yellow.docx"
     with ZipFile(highlighted) as archive:
         xml=archive.read("word/document.xml").decode("utf-8")
         assert 'w:highlight w:val="yellow"' in xml
-    print(f"Validated {len(csvs)} numbered CSV tables, 8 main article tables, 7 main figures, supplementary figures, intervals, source hashes, manuscript claims, and editable Word deliverables.")
+    print(f"Validated {len(csvs)} numbered CSV tables, 9 main article tables, 10 main figures, supplementary figures, 66 references, intervals, source hashes, manuscript claims, and editable Word deliverables.")
 
 
 if __name__=="__main__":

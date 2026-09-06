@@ -41,9 +41,14 @@ def main() -> None:
     shap_meta = pd.read_csv(output / "explanations/shap_background_and_additivity.csv")
     checks.append({"check": "shap_additivity", "passed": bool((shap_meta.maximum_additivity_absolute_error < 1e-4).all()), "maximum_absolute_error": float(shap_meta.maximum_additivity_absolute_error.max())})
     protected = pd.read_csv(output / "metadata/protected_file_hash_validation.csv")
-    checks.append({"check": "raw_data_and_manuscripts_unchanged", "passed": bool(protected.unchanged.astype(str).str.lower().eq("true").all())})
+    raw = protected[protected.category.eq("protected_raw_input")]
+    integrated = protected[protected.category.eq("authorized_manuscript_integration")]
+    checks.append({"check": "raw_data_unchanged", "passed": bool(raw.unchanged.astype(str).str.lower().eq("true").all())})
+    checks.append({"check": "manuscript_integration_recorded", "passed": bool((~integrated.unchanged.astype(str).str.lower().eq("true")).all())})
     figure_ok = all((output / f"figures/figure{i:02d}_{stem}.png").exists() and (output / f"figures/figure{i:02d}_{stem}.pdf").exists() for i, stem in [(1, "workflow_timeline"), (2, "descriptive_class_balance"), (3, "predictor_relationships"), (4, "model_skill_by_lead"), (5, "precision_confusion_calibration"), (6, "shap_importance_stability"), (7, "held_out_episode_timeline")])
     checks.append({"check": "seven_png_and_vector_figures", "passed": figure_ok})
+    integrated_figure_ok = all((output / f"figures/{name}.png").exists() and (output / f"figures/{name}.pdf").exists() for name in ["figure08_manuscript_primary_prediction", "figure09_manuscript_prediction_diagnostics"])
+    checks.append({"check": "integrated_manuscript_figures", "passed": integrated_figure_ok})
     required_reports = ["source_method_transfer.md", "implementation_gap_audit.md", "prediction_contract.md", "analysis_results_brief.md", "monthly_feasibility.md", "AUTHOR_METHODS_GUIDE.md", "DECISION_FOR_PROFESSOR.md"]
     checks.append({"check": "required_reports_present", "passed": all((reports / name).exists() for name in required_reports)})
     leading = metrics[(metrics.scope == "pooled_strictly_out_of_sample") & (metrics.feature_set.isin(["S1", "S2"])) & (metrics.lead == 1) & metrics.model.isin(cfg["models"]["families"])].sort_values("average_precision", ascending=False).iloc[0]

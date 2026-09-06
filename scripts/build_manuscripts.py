@@ -29,6 +29,7 @@ MAIN_TABLE_CAPTIONS = {
     6: "Primary negative-binomial count-model estimate.",
     7: "Adjusted antecedent meteorological associations and sensitivity analyses.",
     8: "Strictly chronological blocked-validation performance.",
+    9: "Strictly held-out future persistent-hot-window performance and within-family information-set contrasts.",
 }
 
 
@@ -157,11 +158,21 @@ def _add_main_tables_and_figures(document: Document) -> None:
     document.add_section(WD_SECTION.NEW_PAGE)
     document.add_heading("Figures", level=1)
     captions = _extract_figure_captions()
+    figure_paths: dict[int, Path] = {}
     for number in range(1, 8):
         matches = sorted((RESULTS / "figures" / "main").glob(f"figure{number:02d}_*.png"))
         if len(matches) != 1:
             raise RuntimeError(f"Expected one main Figure {number}, found {matches}")
-        document.add_picture(str(matches[0]), width=Inches(6.35))
+        figure_paths[number] = matches[0]
+    figure_paths.update({
+        8: RESULTS / "two_paper_benchmark" / "figures" / "figure08_manuscript_primary_prediction.png",
+        9: RESULTS / "two_paper_benchmark" / "figures" / "figure09_manuscript_prediction_diagnostics.png",
+        10: RESULTS / "two_paper_benchmark" / "figures" / "figure06_shap_importance_stability.png",
+    })
+    for number, path in figure_paths.items():
+        if not path.exists():
+            raise RuntimeError(f"Missing main Figure {number}: {path}")
+        document.add_picture(str(path), width=Inches(6.35))
         document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph = document.add_paragraph(captions[number], style="Caption")
         _blacken(paragraph)
@@ -173,7 +184,7 @@ def build_article(output_name: str, highlighted: bool) -> None:
     _style_document(document)
     _add_markdown(document, MANUSCRIPT / "original_article_clean.md", highlighted=highlighted)
     _add_main_tables_and_figures(document)
-    document.core_properties.title = "Long-Term Warming and Definition-Dependent Heatwaves in Dhaka"
+    document.core_properties.title = "Long-Term Warming and Short-Lead Persistent-Hot-Window Prediction in Dhaka"
     document.core_properties.subject = "Editable original-article manuscript"
     document.save(MANUSCRIPT / output_name)
 
@@ -190,6 +201,15 @@ def build_supplement() -> None:
     ]
     for name, caption in supplement_tables:
         _add_dataframe(document, pd.read_csv(RESULTS / "tables" / "supplement" / name), caption)
+    benchmark_root = RESULTS / "two_paper_benchmark"
+    benchmark_tables = [
+        ("metrics/paired_year_block_comparisons.csv", "Supplementary Table S3. Paired held-out-year S2-minus-S1 comparisons by family and lead."),
+        ("metrics/onset_risk_subset.csv", "Supplementary Table S4. One-day onset-risk performance on issue dates below 36 °C."),
+        ("sensitivities/history7_vs_14_metrics.csv", "Supplementary Table S5. Seven- versus fourteen-day history sensitivity."),
+        ("explanations/shap_background_and_additivity.csv", "Supplementary Table S6. Out-of-sample SHAP background and additivity provenance."),
+    ]
+    for name, caption in benchmark_tables:
+        _add_dataframe(document, pd.read_csv(benchmark_root / name), caption)
     document.add_section(WD_SECTION.NEW_PAGE)
     document.add_heading("Supplementary figures", level=1)
     supplement_figures = [
@@ -198,6 +218,17 @@ def build_supplement() -> None:
     ]
     for name, caption in supplement_figures:
         document.add_picture(str(RESULTS / "figures" / "supplement" / name), width=Inches(6.35))
+        document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph = document.add_paragraph(caption, style="Caption")
+        _blacken(paragraph)
+    benchmark_figures = [
+        ("figure01_workflow_timeline.png", "Supplementary Figure S3. Prediction timing contract for direct one-, three-, and seven-day leads."),
+        ("figure02_descriptive_class_balance.png", "Supplementary Figure S4. Held-out class prevalence and issue-day temperature distributions."),
+        ("figure03_predictor_relationships.png", "Supplementary Figure S5. Predictor correlations before fold-specific redundancy filtering."),
+        ("figure07_held_out_episode_timeline.png", "Supplementary Figure S6. Held-out XGBoost S2 probability timeline, positive windows, misses, and false alerts."),
+    ]
+    for name, caption in benchmark_figures:
+        document.add_picture(str(benchmark_root / "figures" / name), width=Inches(6.35))
         document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph = document.add_paragraph(caption, style="Caption")
         _blacken(paragraph)
